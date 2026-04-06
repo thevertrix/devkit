@@ -1,0 +1,19 @@
+{
+  "name": "devkit",
+  "version": "0.1.0",
+  "description": "Local dev environment manager — SSL, custom domains, mail",
+  "type": "module",
+  "bin": {
+    "devkit": "./bin/devkit.js"
+  },
+  "scripts": {
+    "dev": "node bin/devkit.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "conf": "^13.0.0",
+    "execa": "^9.3.0",
+    "ora": "^8.1.0"
+  }
+}
