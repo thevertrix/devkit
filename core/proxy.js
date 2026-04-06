@@ -149,16 +149,20 @@ function detectProjectFramework(dir) {
  */
 export function registerProject(projectName, port, projectDir = process.cwd()) {
   initProxy()
+  
+  // Prevenir que se registre un proyecto llamado "devkit" (reservado para el dashboard)
+  if (projectName === 'devkit') {
+    console.log(chalk.yellow(`⚠ El nombre "devkit" está reservado para el dashboard. No se registrará en el proxy.`))
+    console.log(chalk.dim(`  El proyecto está disponible localmente en http://localhost:${port}`))
+    return
+  }
 
   const host = `${projectName}.test`
   const projectConfigPath = join(PROXY_CONFIG_DIR, `${projectName}.caddy`)
 
   const config = `# PATH: ${projectDir}
 ${host} {
-\treverse_proxy localhost:${port} {
-\t\theader_up X-Forwarded-Host {host}
-\t\theader_up X-Forwarded-Proto {scheme}
-\t}
+\treverse_proxy localhost:${port}
 }
 `
 
@@ -178,42 +182,89 @@ export function unregisterProject(projectName) {
 }
 
 /**
- * Reinicia Caddy para aplicar los cambios (solo en background).
+ * Inicia Caddy elevado en Windows (necesita admin para puertos 80/443).
+ */
+async function startCaddyElevated() {
+  const caddyPath = await getCaddyPath()
+  const configPath = CADDYFILE_PATH.replace(/\//g, '\\')
+
+  // Iniciar Caddy como proceso elevado en segundo plano
+  await execa('powershell', [
+    '-Command',
+    `Start-Process -Verb RunAs -WindowStyle Hidden -FilePath '${caddyPath}' -ArgumentList 'start','--config','${configPath}'`,
+  ], { stdio: 'inherit' })
+
+  // Esperar un momento a que arranque
+  await new Promise(resolve => setTimeout(resolve, 1500))
+}
+
+/**
+ * Obtiene la ruta absoluta de caddy.exe
+ */
+async function getCaddyPath() {
+  try {
+    const { stdout } = await execa('where', ['caddy'], { stdio: 'pipe' })
+    return stdout.trim().split('\n')[0].trim()
+  } catch {
+    return 'caddy'
+  }
+}
+
+/**
+ * Reinicia Caddy para aplicar los cambios.
+ * En Windows, auto-eleva con UAC si Caddy no está corriendo.
  */
 export async function reloadProxy() {
   const spinner = ora('Recargando proxy...').start()
 
   try {
-    const isRunning = await execa('curl', ['-s', 'http://localhost:2019/config/'], { reject: false })
+    // Intentar reload directo (funciona si Caddy ya está corriendo)
+    const reload = await execa('caddy', ['reload', '--config', CADDYFILE_PATH, '--force'], {
+      reject: false,
+      stdio: 'pipe',
+    })
 
-    if (isRunning.exitCode === 0) {
+    if (reload.exitCode === 0) {
+      spinner.succeed(chalk.green('Proxy recargado correctamente.'))
+      return
+    }
+
+    // Caddy no está corriendo — intentar iniciar
+    spinner.text = 'Iniciando proxy...'
+
+    if (os.platform() === 'win32') {
+      // Windows: necesita admin para puertos 80/443
       try {
-        await execa('caddy', ['reload', '--config', CADDYFILE_PATH], { stdio: 'ignore' })
-        spinner.succeed(chalk.green('Proxy recargado correctamente.'))
-      } catch (reloadErr) {
-        spinner.fail(chalk.red('Error en la sintaxis de configuración de Caddy. Revisa tus archivos .caddy.'))
-        throw reloadErr
-      }
-    } else {
-      spinner.warn(chalk.yellow('El proxy no está corriendo.'))
-      console.log(chalk.cyan('\n📌 Para iniciar Caddy, ejecuta en una terminal con privilegios de administrador:'))
-      console.log(chalk.white(`   caddy run --config "${CADDYFILE_PATH}"`))
-      console.log(chalk.gray('\n   O si prefieres ejecutarlo en segundo plano:'))
-      console.log(chalk.white(`   caddy start --config "${CADDYFILE_PATH}"\n`))
-      
-      // En sistemas Unix, intentar iniciar automáticamente
-      if (os.platform() !== 'win32') {
-        try {
-          await execa('caddy', ['start', '--config', CADDYFILE_PATH], { stdio: 'ignore' })
-          spinner.succeed(chalk.green('Proxy iniciado.'))
-        } catch {
-          // Silenciar error ya que mostramos las instrucciones arriba
+        await startCaddyElevated()
+
+        // Verificar que arrancó
+        const recheck = await execa('caddy', ['reload', '--config', CADDYFILE_PATH, '--force'], {
+          reject: false,
+          stdio: 'pipe',
+        })
+        if (recheck.exitCode === 0) {
+          spinner.succeed(chalk.green('Proxy iniciado (se solicitó permisos de administrador).'))
+          return
         }
+      } catch {
+        // UAC rechazada o error
+      }
+
+      spinner.warn(chalk.yellow('No se pudo iniciar Caddy.'))
+      console.log(chalk.cyan('\n  Ejecuta en una terminal de Administrador:'))
+      console.log(chalk.white(`  caddy start --config "${CADDYFILE_PATH}"\n`))
+    } else {
+      // Unix: intentar directamente
+      try {
+        await execa('caddy', ['start', '--config', CADDYFILE_PATH], { stdio: 'ignore' })
+        spinner.succeed(chalk.green('Proxy iniciado.'))
+      } catch {
+        spinner.warn(chalk.yellow('No se pudo iniciar Caddy.'))
+        console.log(chalk.cyan(`\n  Ejecuta: sudo caddy start --config "${CADDYFILE_PATH}"\n`))
       }
     }
-  } catch (error) {
-    spinner.fail(chalk.red('Error al verificar el estado del proxy.'))
-    console.log(chalk.yellow('\n⚠️  Asegúrate de que Caddy esté instalado y la terminal tenga permisos de administrador.'))
+  } catch {
+    spinner.fail(chalk.red('Caddy no está instalado o no se encontró en el PATH.'))
   }
 }
 

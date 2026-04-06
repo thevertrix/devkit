@@ -4,7 +4,7 @@
 services:
 {{#MYSQL}}
   mysql:
-    image: mysql:8
+    image: mysql:{{MYSQL_VERSION}}
     container_name: {{PROJECT_NAME}}-mysql
     restart: unless-stopped
     ports:
@@ -25,7 +25,7 @@ services:
 {{/MYSQL}}
 {{#POSTGRES}}
   postgres:
-    image: postgres:16
+    image: postgres:{{POSTGRES_VERSION}}
     container_name: {{PROJECT_NAME}}-postgres
     restart: unless-stopped
     ports:
@@ -47,7 +47,7 @@ services:
 {{/POSTGRES}}
 {{#REDIS}}
   redis:
-    image: redis:7
+    image: redis:{{REDIS_VERSION}}
     container_name: {{PROJECT_NAME}}-redis
     restart: unless-stopped
     ports:
@@ -64,7 +64,7 @@ services:
 {{/REDIS}}
 {{#MAILPIT}}
   mailpit:
-    image: axllent/mailpit
+    image: axllent/mailpit:{{MAILPIT_VERSION}}
     container_name: {{PROJECT_NAME}}-mailpit
     restart: unless-stopped
     ports:
@@ -78,6 +78,41 @@ services:
       timeout: 5s
       retries: 5
 {{/MAILPIT}}
+{{#PHP}}
+  php:
+    image: php:{{PHP_VERSION}}-fpm
+    container_name: {{PROJECT_NAME}}-php
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+    networks:
+      - devkit
+{{/PHP}}
+{{#NODE}}
+  node:
+    image: node:{{NODE_VERSION}}-alpine
+    container_name: {{PROJECT_NAME}}-node
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    networks:
+      - devkit
+    command: sh -c "npm install && npm run dev"
+{{/NODE}}
+{{#PYTHON}}
+  python:
+    image: python:{{PYTHON_VERSION}}-slim
+    container_name: {{PROJECT_NAME}}-python
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - .:/app
+    networks:
+      - devkit
+{{/PYTHON}}
 
 volumes:
 {{#MYSQL}}
@@ -89,6 +124,9 @@ volumes:
 {{#REDIS}}
   redis_data:
 {{/REDIS}}
+{{#NODE}}
+  node_modules:
+{{/NODE}}
 
 networks:
   devkit:

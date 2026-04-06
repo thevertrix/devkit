@@ -50,10 +50,13 @@ program
 program
   .command('start')
   .description('Levanta el proyecto y los servicios en Docker si los requiere')
-  .option('--mysql', 'Agrega un contenedor MySQL')
-  .option('--postgres', 'Agrega un contenedor PostgreSQL')
-  .option('--redis', 'Agrega un contenedor Redis')
-  .option('--mailpit', 'Agrega un contenedor Mailpit (correo falso)')
+  .option('--mysql [version]', 'Agrega un contenedor MySQL (especifica versión opcional, ej: --mysql=8.0)')
+  .option('--postgres [version]', 'Agrega un contenedor PostgreSQL (especifica versión opcional, ej: --postgres=15)')
+  .option('--redis [version]', 'Agrega un contenedor Redis (especifica versión opcional, ej: --redis=7)')
+  .option('--mailpit [version]', 'Agrega un contenedor Mailpit (especifica versión opcional, ej: --mailpit=latest)')
+  .option('--php [version]', 'Agrega un contenedor PHP (especifica versión opcional, ej: --php=8.3)')
+  .option('--node [version]', 'Agrega un contenedor Node.js (especifica versión opcional, ej: --node=20)')
+  .option('--python [version]', 'Agrega un contenedor Python (especifica versión opcional, ej: --python=3.12)')
   .action(async (opts) => {
     const { start } = await import('../commands/start.js')
     await start(opts)
@@ -61,10 +64,14 @@ program
 
 program
   .command('stop')
-  .description('Detiene todos los servicios')
-  .action(async () => {
+  .description('Detiene servicios. Sin flags detiene todo el entorno')
+  .option('--mysql', 'Detener solo el contenedor MySQL')
+  .option('--postgres', 'Detener solo el contenedor PostgreSQL')
+  .option('--redis', 'Detener solo el contenedor Redis')
+  .option('--mailpit', 'Detener solo el contenedor Mailpit')
+  .action(async (opts) => {
     const { stop } = await import('../commands/stop.js')
-    await stop()
+    await stop(opts)
   })
 
 program
@@ -81,6 +88,24 @@ program
   .action(async () => {
     const { mail } = await import('../commands/mail.js')
     await mail()
+  })
+
+program
+  .command('services')
+  .description('Gestiona las versiones por defecto de los servicios y runtimes')
+  .option('--list', 'Lista las versiones por defecto')
+  .option('--set', 'Configura las versiones por defecto')
+  .option('--mysql <version>', 'Establece la versión por defecto de MySQL')
+  .option('--postgres <version>', 'Establece la versión por defecto de PostgreSQL')
+  .option('--redis <version>', 'Establece la versión por defecto de Redis')
+  .option('--mailpit <version>', 'Establece la versión por defecto de Mailpit')
+  .option('--php <version>', 'Establece la versión por defecto de PHP')
+  .option('--node <version>', 'Establece la versión por defecto de Node.js')
+  .option('--python <version>', 'Establece la versión por defecto de Python')
+  .option('--go <version>', 'Establece la versión por defecto de Go')
+  .action(async (opts) => {
+    const { services } = await import('../commands/services.js')
+    await services(opts)
   })
 
 program.parse()

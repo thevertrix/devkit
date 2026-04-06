@@ -25,10 +25,13 @@ export function getDefaultPorts() {
  * Genera y escribe el docker-compose.yml base en la ruta dada.
  * @param {string} destDir - Directorio destino
  * @param {object} options - Servicios a incluir y config del proyecto
- * @param {boolean} options.mysql
- * @param {boolean} options.postgres
- * @param {boolean} options.redis
- * @param {boolean} options.mailpit
+ * @param {object|boolean} options.mysql - true o {version: '8.0'}
+ * @param {object|boolean} options.postgres - true o {version: '16'}
+ * @param {object|boolean} options.redis - true o {version: '7'}
+ * @param {object|boolean} options.mailpit - true o {version: 'latest'}
+ * @param {object|boolean} options.php - true o {version: '8.3'}
+ * @param {object|boolean} options.node - true o {version: '20'}
+ * @param {object|boolean} options.python - true o {version: '3.12'}
  * @param {string}  options.projectName
  */
 export function writeBaseCompose(destDir, options) {
@@ -37,25 +40,46 @@ export function writeBaseCompose(destDir, options) {
     postgres = false,
     redis = false,
     mailpit = false,
+    php = false,
+    node = false,
+    python = false,
     projectName = 'devkit-project',
   } = options
 
   const ports = getDefaultPorts()
   let template = readFileSync(TEMPLATE_PATH, 'utf8')
 
+  // Extraer versiones de los servicios
+  const mysqlVersion = (typeof mysql === 'object' ? mysql.version : '8.0') || '8.0'
+  const postgresVersion = (typeof postgres === 'object' ? postgres.version : '16') || '16'
+  const redisVersion = (typeof redis === 'object' ? redis.version : '7') || '7'
+  const mailpitVersion = (typeof mailpit === 'object' && mailpit.version) ? mailpit.version : 'latest'
+  
+  // Extraer versiones de los runtimes
+  const phpVersion = (typeof php === 'object' ? php.version : '8.3') || '8.3'
+  const nodeVersion = (typeof node === 'object' ? node.version : '20') || '20'
+  const pythonVersion = (typeof python === 'object' ? python.version : '3.12') || '3.12'
+
   // Reemplazar placeholders simples
   const dbName = projectName.replace(/[^a-zA-Z0-9_]/g, '_')
   const replacements = {
     '{{PROJECT_NAME}}': projectName,
     '{{DB_NAME}}': dbName,
+    '{{MYSQL_VERSION}}': mysqlVersion,
     '{{MYSQL_PORT}}': String(ports.mysql),
     '{{MYSQL_PASSWORD}}': process.env.MYSQL_ROOT_PASSWORD || 'devkit',
+    '{{POSTGRES_VERSION}}': postgresVersion,
     '{{POSTGRES_PORT}}': String(ports.postgres),
     '{{POSTGRES_USER}}': 'devkit',
     '{{POSTGRES_PASSWORD}}': 'devkit',
+    '{{REDIS_VERSION}}': redisVersion,
     '{{REDIS_PORT}}': String(ports.redis),
+    '{{MAILPIT_VERSION}}': mailpitVersion,
     '{{SMTP_PORT}}': String(ports.smtp),
     '{{MAILPIT_PORT}}': String(ports.mailpit),
+    '{{PHP_VERSION}}': phpVersion,
+    '{{NODE_VERSION}}': nodeVersion,
+    '{{PYTHON_VERSION}}': pythonVersion,
   }
 
   for (const [placeholder, value] of Object.entries(replacements)) {
@@ -63,7 +87,15 @@ export function writeBaseCompose(destDir, options) {
   }
 
   // Procesar bloques condicionales {{#SERVICE}}...{{/SERVICE}}
-  const services = { MYSQL: mysql, POSTGRES: postgres, REDIS: redis, MAILPIT: mailpit }
+  const services = { 
+    MYSQL: !!mysql, 
+    POSTGRES: !!postgres, 
+    REDIS: !!redis, 
+    MAILPIT: !!mailpit,
+    PHP: !!php,
+    NODE: !!node,
+    PYTHON: !!python,
+  }
 
   for (const [tag, enabled] of Object.entries(services)) {
     const regex = new RegExp(`{{#${tag}}}\\n([\\s\\S]*?){{/${tag}}}\\n?`, 'g')
@@ -79,8 +111,8 @@ export function writeBaseCompose(destDir, options) {
   // Limpiar líneas vacías consecutivas (máximo 1 línea vacía)
   template = template.replace(/\n{3,}/g, '\n\n')
 
-  // Limpiar 'volumes:' vacío si no hay db o redis
-  if (!mysql && !postgres && !redis) {
+  // Limpiar 'volumes:' vacío si no hay volumenes
+  if (!mysql && !postgres && !redis && !node) {
     // Si no hay volumenes, la clave volumes: quedará vacía justo antes de networks:
     template = template.replace(/volumes:\s*networks:/g, 'networks:')
   }
@@ -126,6 +158,28 @@ export async function stopServices(projectDir) {
     spinner.succeed(chalk.green('Servicios detenidos correctamente.'))
   } catch (error) {
     spinner.fail(chalk.red('Error al detener los servicios Docker.'))
+    throw error
+  }
+}
+
+/**
+ * Detiene un servicio Docker específico de un proyecto.
+ * @param {string} projectDir - Directorio del proyecto (con docker-compose.yml)
+ * @param {string} serviceName - Nombre del servicio en docker-compose (ej: 'mysql')
+ */
+export async function stopService(projectDir, serviceName) {
+  const spinner = ora(`Deteniendo ${serviceName}...`).start()
+
+  try {
+    await execa('docker', ['compose', 'stop', serviceName], {
+      cwd: projectDir,
+    })
+    await execa('docker', ['compose', 'rm', '-f', serviceName], {
+      cwd: projectDir,
+    })
+    spinner.succeed(chalk.green(`${serviceName} detenido.`))
+  } catch (error) {
+    spinner.fail(chalk.red(`Error al detener ${serviceName}.`))
     throw error
   }
 }

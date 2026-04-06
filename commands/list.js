@@ -3,56 +3,53 @@ import { readdirSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
 import { getDevkitContainers } from '../core/detect.js'
-import { unregisterProject, reloadProxy } from '../core/proxy.js'
+import { unregisterProject } from '../core/proxy.js'
 
 export async function list() {
   const DEVKIT_DIR = join(os.homedir(), '.devkit')
   const PROXY_CONFIG_DIR = join(DEVKIT_DIR, 'proxy')
 
   console.log(chalk.cyan(`\n🌐 Proyectos registrados en Caddy (.test):`))
-  
-  let needsReload = false
 
   if (!existsSync(PROXY_CONFIG_DIR)) {
     console.log(chalk.dim('  Ningún proyecto registrado aún.\n'))
   } else {
-    const files = readdirSync(PROXY_CONFIG_DIR).filter(f => f.endsWith('.caddy'))
+    // Filtrar archivos .caddy que sean proyectos reales (no internos como _dashboard)
+    const files = readdirSync(PROXY_CONFIG_DIR)
+      .filter(f => f.endsWith('.caddy') && !f.startsWith('_'))
+
+    let cleaned = false
+
     if (files.length === 0) {
       console.log(chalk.dim('  Ningún proyecto registrado aún.\n'))
     } else {
       for (const file of files) {
         const projectName = file.replace('.caddy', '')
-        const filePath = join(PROXY_CONFIG_DIR, file)
-        const content = readFileSync(filePath, 'utf8')
-        
-        // Buscar ruta original en el comentario o asumir la de devkit-projects
-        const pathMatch = content.match(/# PATH:\s*(.+)/)
-        const projectDir = pathMatch ? pathMatch[1].trim() : join(os.homedir(), 'devkit-projects', projectName)
+        const content = readFileSync(join(PROXY_CONFIG_DIR, file), 'utf8')
 
-        // Si el directorio ya no existe, lo limpiamos de Caddy
-        if (!existsSync(projectDir)) {
+        const pathMatch = content.match(/# PATH:\s*(.+)/)
+        const projectDir = pathMatch ? pathMatch[1].trim() : null
+
+        // Si el directorio ya no existe, limpiar silenciosamente
+        if (projectDir && !existsSync(projectDir)) {
           unregisterProject(projectName)
-          needsReload = true
+          cleaned = true
           continue
         }
 
         console.log(`  ${chalk.green('✓')} ${chalk.bold(projectName)} ${chalk.dim(`(https://${projectName}.test)`)}`)
       }
-      
-      if (needsReload) {
-        try {
-          await reloadProxy()
-          console.log(chalk.yellow(`  ⚠ Se detectaron y limpiaron proyectos eliminados del disco.\n`))
-        } catch(e) {}
-      } else {
-        console.log('')
+
+      if (cleaned) {
+        console.log(chalk.dim('  (se limpiaron proyectos eliminados del disco)'))
       }
+      console.log('')
     }
   }
 
   console.log(chalk.cyan(`🐳 Contenedores Docker de Devkit:`))
   const containers = getDevkitContainers()
-  
+
   if (containers.length === 0) {
     console.log(chalk.dim('  No hay contenedores de devkit corriendo.\n'))
   } else {

@@ -188,6 +188,10 @@
       font-size: 0.8rem;
     }
 
+    .quickstart li code {
+      color: var(--accent);
+    }
+
     footer {
       color: var(--text-dim);
       font-size: 0.7rem;
@@ -207,7 +211,7 @@
   <div class="container">
     <header>
       <div class="logo"><span>dev</span>kit</div>
-      <p class="tagline">Local dev environment &mdash; SSL, .test domains, Docker services, mail</p>
+      <p class="tagline">Local dev environment &mdash; SSL, .test domains, versioned services & runtimes</p>
     </header>
 
     <section>
@@ -221,14 +225,14 @@
         <ol>
           <li>Ejecuta <code>devkit new mi-app --laravel</code> para crear un proyecto</li>
           <li>Entra al directorio: <code>cd ~/devkit-projects/mi-app</code></li>
-          <li>Levanta el entorno: <code>devkit start</code></li>
+          <li>Levanta el entorno: <code>devkit start --mysql --mailpit</code></li>
           <li>Abre <code>https://mi-app.test</code> en tu navegador</li>
         </ol>
       </div>
     </section>
 
     <section>
-      <h2>Comandos</h2>
+      <h2>Comandos principales</h2>
       <div class="commands">
         <div class="cmd"><code>devkit new &lt;name&gt; --laravel</code> <span>Crear proyecto Laravel</span></div>
         <div class="cmd"><code>devkit new &lt;name&gt; --next</code> <span>Crear proyecto Next.js</span></div>
@@ -236,11 +240,44 @@
         <div class="cmd"><code>devkit new &lt;name&gt; --astro</code> <span>Crear proyecto Astro</span></div>
         <div class="cmd"><code>devkit start</code> <span>Levantar entorno del proyecto actual</span></div>
         <div class="cmd"><code>devkit stop</code> <span>Detener todos los servicios</span></div>
-        <div class="cmd"><code>devkit start --mysql</code> <span>Levantar con MySQL en Docker</span></div>
-        <div class="cmd"><code>devkit start --mailpit</code> <span>Levantar con Mailpit (correo)</span></div>
         <div class="cmd"><code>devkit doctor</code> <span>Verificar dependencias</span></div>
         <div class="cmd"><code>devkit list</code> <span>Ver proyectos registrados</span></div>
         <div class="cmd"><code>devkit mail</code> <span>Abrir Mailpit en el navegador</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Servicios Docker con versiones</h2>
+      <div class="commands">
+        <div class="cmd"><code>devkit start --mysql</code> <span>MySQL con versión por defecto</span></div>
+        <div class="cmd"><code>devkit start --mysql=8.0</code> <span>MySQL versión 8.0 específica</span></div>
+        <div class="cmd"><code>devkit start --postgres=15</code> <span>PostgreSQL versión 15</span></div>
+        <div class="cmd"><code>devkit start --redis=7</code> <span>Redis versión 7</span></div>
+        <div class="cmd"><code>devkit start --mailpit</code> <span>Mailpit (servidor de correo)</span></div>
+        <div class="cmd"><code>devkit services --list</code> <span>Ver versiones por defecto</span></div>
+        <div class="cmd"><code>devkit services --set</code> <span>Configurar versiones por defecto</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Runtimes con versiones</h2>
+      <div class="commands">
+        <div class="cmd"><code>devkit start --php=8.3</code> <span>PHP versión 8.3 en contenedor</span></div>
+        <div class="cmd"><code>devkit start --node=20</code> <span>Node.js versión 20 en contenedor</span></div>
+        <div class="cmd"><code>devkit start --python=3.12</code> <span>Python versión 3.12 en contenedor</span></div>
+        <div class="cmd"><code>devkit services --set --php=8.2</code> <span>Cambiar versión PHP por defecto</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Ejemplos de uso</h2>
+      <div class="quickstart">
+        <ol>
+          <li><code>devkit start --mysql=5.7 --php=7.4</code> — Laravel legacy</li>
+          <li><code>devkit start --postgres=16 --node=20</code> — API moderna Node.js</li>
+          <li><code>devkit start --mysql=8.0 --php=8.3 --mailpit</code> — Full stack PHP</li>
+          <li><code>devkit start --python=3.12 --postgres=15</code> — Aplicación Python</li>
+        </ol>
       </div>
     </section>
 
