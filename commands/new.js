@@ -53,33 +53,45 @@ export async function newProject(name, opts) {
 
       console.log(chalk.green(`\n✓ Proyecto Laravel creado en ${targetDir}`))
     } else if (opts.next) {
-      const spinner = ora('Generando proyecto Next.js...').start()
-      await execa('npx', ['create-next-app@latest', name, '--ts', '--tailwind', '--eslint', '--app', '--src-dir', '--import-alias', '@/*'], { cwd: projectsBaseDir, stdio: 'ignore' })
-      spinner.succeed(chalk.green(`Proyecto creado en ${targetDir}`))
+      console.log(chalk.blue('Generando proyecto Next.js...'))
+      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
+      await execa('npx', ['create-next-app@latest', name, '--ts', '--tailwind', '--eslint', '--app', '--src-dir', '--import-alias', '@/*'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchNextConfig(targetDir, projectSlug)
+      console.log(chalk.green(`✓ Proyecto Next.js creado en ${targetDir}`))
     } else if (opts.nuxt) {
-      const spinner = ora('Generando proyecto Nuxt.js...').start()
-      await execa('npx', ['nuxi@latest', 'init', name], { cwd: projectsBaseDir, stdio: 'ignore' })
-      spinner.succeed(chalk.green(`Proyecto creado en ${targetDir}`))
+      console.log(chalk.blue('Generando proyecto Nuxt.js...'))
+      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
+      await execa('npx', ['nuxi@latest', 'init', name], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchNuxtConfig(targetDir, projectSlug)
+      console.log(chalk.green(`✓ Proyecto Nuxt creado en ${targetDir}`))
     } else if (opts.angular) {
-      const spinner = ora('Generando proyecto Angular...').start()
-      await execa('npx', ['@angular/cli', 'new', name, '--defaults'], { cwd: projectsBaseDir, stdio: 'ignore' })
-      spinner.succeed(chalk.green(`Proyecto creado en ${targetDir}`))
+      console.log(chalk.blue('Generando proyecto Angular...'))
+      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
+      await execa('npx', ['@angular/cli', 'new', name, '--defaults'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      console.log(chalk.green(`✓ Proyecto Angular creado en ${targetDir}`))
     } else if (opts.nestjs) {
-      const spinner = ora('Generando proyecto NestJS...').start()
-      await execa('npx', ['@nestjs/cli', 'new', name, '--package-manager', 'npm', '--strict'], { cwd: projectsBaseDir, stdio: 'ignore' })
-      spinner.succeed(chalk.green(`Proyecto creado en ${targetDir}`))
+      console.log(chalk.blue('Generando proyecto NestJS...'))
+      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
+      await execa('npx', ['@nestjs/cli', 'new', name, '--package-manager', 'npm', '--strict'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      console.log(chalk.green(`✓ Proyecto NestJS creado en ${targetDir}`))
     } else if (opts.astro) {
-      const spinner = ora('Generando proyecto Astro...').start()
-      await execa('npm', ['create', 'astro@latest', name, '--', '--install', '--no-git', '--typescript', 'strict'], { cwd: projectsBaseDir, stdio: 'ignore' })
-      spinner.succeed(chalk.green(`Proyecto creado en ${targetDir}`))
+      console.log(chalk.blue('Generando proyecto Astro...'))
+      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
+      await execa('npm', ['create', 'astro@latest', name, '--', '--install', '--no-git', '--typescript', 'strict'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchAstroConfig(targetDir, projectSlug)
+      console.log(chalk.green(`✓ Proyecto Astro creado en ${targetDir}`))
     } else if (opts.svelte) {
-      const spinner = ora('Generando proyecto SvelteKit...').start()
-      await execa('npm', ['create', 'svelte@latest', name], { cwd: projectsBaseDir, stdio: 'ignore' })
-      spinner.succeed(chalk.green(`Proyecto creado en ${targetDir}`))
+      console.log(chalk.blue('Generando proyecto SvelteKit...'))
+      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
+      await execa('npm', ['create', 'svelte@latest', name], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchSvelteKitConfig(targetDir, projectSlug)
+      console.log(chalk.green(`✓ Proyecto SvelteKit creado en ${targetDir}`))
     } else {
-      const spinner = ora('Generando proyecto Vite (Vanilla TS) por defecto...').start()
-      await execa('npm', ['create', 'vite@latest', name, '--', '--template', 'vanilla-ts'], { cwd: projectsBaseDir, stdio: 'ignore' })
-      spinner.succeed(chalk.green(`Proyecto creado en ${targetDir}`))
+      console.log(chalk.blue('Generando proyecto Vite (Vanilla TS) por defecto...'))
+      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
+      await execa('npm', ['create', 'vite@latest', name, '--', '--template', 'vanilla-ts'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchViteConfig(targetDir, projectSlug)
+      console.log(chalk.green(`✓ Proyecto Vite creado en ${targetDir}`))
     }
 
     console.log(`\nSiguientes pasos:`)
@@ -188,13 +200,14 @@ async function createLaravelProject(name, projectsBaseDir, targetDir) {
     let laravelBin = findLaravelBin()
 
     if (!laravelBin) {
-      const spinner = ora('Instalando laravel/installer via Composer...').start()
+      console.log(chalk.blue('Instalando laravel/installer via Composer...'))
+      console.log(chalk.dim('Esto puede requerir confirmación y tardar unos minutos...'))
       try {
-        await execa('composer', ['global', 'require', 'laravel/installer'], { stdio: 'pipe' })
-        spinner.succeed('laravel/installer instalado.')
+        await execa('composer', ['global', 'require', 'laravel/installer'], { stdio: 'inherit' })
+        console.log(chalk.green('✓ laravel/installer instalado'))
         laravelBin = findLaravelBin()
       } catch (e) {
-        spinner.fail('No se pudo instalar laravel/installer.')
+        console.log(chalk.red('✗ No se pudo instalar laravel/installer'))
         console.log(chalk.dim(`  ${e.stderr?.split('\n')[0] || e.message}`))
       }
     }
@@ -358,50 +371,53 @@ async function configureLaravelProject(targetDir, choices) {
   // 2. Instalar starter kit
   if (choices.starterKit !== 'none') {
     const [kit, stack] = choices.starterKit.split('-')  // "breeze-react" → ["breeze", "react"]
-    const spinner = ora(`  Instalando Laravel ${kit}...`).start()
+    console.log(chalk.blue(`  Instalando Laravel ${kit}...`))
+    console.log(chalk.dim('  Esto puede tardar varios minutos descargando dependencias...'))
 
     try {
-      await execa('composer', ['require', `laravel/${kit}`, '--dev'], { cwd: targetDir, stdio: 'pipe' })
+      await execa('composer', ['require', `laravel/${kit}`, '--dev'], { cwd: targetDir, stdio: 'inherit' })
 
       const installArgs = ['artisan', `${kit}:install`]
       if (stack) installArgs.push(stack)
 
-      await execa('php', installArgs, { cwd: targetDir, stdio: 'pipe' })
+      await execa('php', installArgs, { cwd: targetDir, stdio: 'inherit' })
 
       // Instalar dependencias de NPM si el starter kit las necesita
       if (stack !== 'api' && existsSync(join(targetDir, 'package.json'))) {
-        await execa('npm', ['install'], { cwd: targetDir, stdio: 'pipe' })
+        console.log(chalk.blue('    Instalando dependencias NPM...'))
+        await execa('npm', ['install'], { cwd: targetDir, stdio: 'inherit' })
       }
 
-      spinner.succeed(`  Laravel ${kit} (${stack || 'default'}) instalado`)
+      console.log(chalk.green(`  ✓ Laravel ${kit} (${stack || 'default'}) instalado`))
     } catch (e) {
       const msg = e.stderr?.split('\n').filter(Boolean).slice(0, 2).join('\n    ') || e.message
-      spinner.fail(`  Error instalando ${kit}`)
+      console.log(chalk.red(`  ✗ Error instalando ${kit}`))
       console.log(chalk.dim(`    ${msg}`))
     }
   }
 
   // 3. Instalar Pest si fue elegido
   if (choices.testing === 'pest') {
-    const spinner = ora('  Instalando Pest...').start()
+    console.log(chalk.blue('  Instalando Pest...'))
+    console.log(chalk.dim('  Descargando paquetes de testing...'))
     try {
       await execa('composer', [
         'require', 'pestphp/pest', 'pestphp/pest-plugin-laravel',
         '--dev', '--with-all-dependencies',
-      ], { cwd: targetDir, stdio: 'pipe' })
+      ], { cwd: targetDir, stdio: 'inherit' })
 
       // pest:install viene del plugin de Laravel
       try {
-        await execa('php', ['artisan', 'pest:install', '--no-interaction'], { cwd: targetDir, stdio: 'pipe' })
+        await execa('php', ['artisan', 'pest:install', '--no-interaction'], { cwd: targetDir, stdio: 'inherit' })
       } catch {
         // Fallback: inicializar Pest directamente
         const pestBin = os.platform() === 'win32' ? 'vendor\\bin\\pest' : 'vendor/bin/pest'
-        await execa('php', [pestBin, '--init'], { cwd: targetDir, stdio: 'pipe' })
+        await execa('php', [pestBin, '--init'], { cwd: targetDir, stdio: 'inherit' })
       }
 
-      spinner.succeed('  Pest instalado')
+      console.log(chalk.green('  ✓ Pest instalado'))
     } catch (e) {
-      spinner.fail('  Error instalando Pest')
+      console.log(chalk.red('  ✗ Error instalando Pest'))
       console.log(chalk.dim(`    ${e.stderr?.split('\n')[0] || e.message}`))
     }
   }
@@ -431,6 +447,333 @@ function patchLaravelEnv(targetDir, projectSlug) {
   writeFileSync(envPath, env, 'utf8')
   console.log(chalk.green(`  ✓ APP_URL=https://${projectSlug}.test`))
 
+  // Configurar Vite para Laravel
+  patchLaravelViteConfig(targetDir)
+
   // Parchar bootstrap/app.php para confiar en el proxy local
   patchTrustProxies(targetDir)
+}
+
+/**
+ * Configura Laravel Vite para permitir dominios .test
+ */
+function patchLaravelViteConfig(targetDir) {
+  const configPath = join(targetDir, 'vite.config.js')
+  
+  if (!existsSync(configPath)) {
+    console.log(chalk.yellow('  ⚠ vite.config.js no encontrado, saltando configuración'))
+    return
+  }
+
+  let config = readFileSync(configPath, 'utf8')
+  
+  // Si ya tiene la configuración, no hacer nada
+  if (config.includes('allowedHosts')) {
+    console.log(chalk.green('  ✓ vite.config.js ya configurado para dominios .test'))
+    return
+  }
+
+  // Laravel usa una configuración específica con el plugin Laravel
+  if (config.includes('export default defineConfig({')) {
+    config = config.replace(
+      'export default defineConfig({',
+      `export default defineConfig({
+    server: {
+        allowedHosts: ['*.test', 'localhost'],
+    },`
+    )
+  } else {
+    // Configuración simple sin defineConfig
+    config = config.replace(
+      'export default {',
+      `export default {
+    server: {
+        allowedHosts: ['*.test', 'localhost'],
+    },`
+    )
+  }
+
+  writeFileSync(configPath, config, 'utf8')
+  console.log(chalk.green('  ✓ vite.config.js configurado para dominios .test'))
+}
+
+/**
+ * Configura Astro para permitir dominios .test
+ */
+function patchAstroConfig(targetDir, projectSlug) {
+  const configPath = join(targetDir, 'astro.config.mjs')
+  
+  if (!existsSync(configPath)) {
+    console.log(chalk.yellow('  ⚠ astro.config.mjs no encontrado, saltando configuración'))
+    return
+  }
+
+  let config = readFileSync(configPath, 'utf8')
+  
+  // Si ya tiene la configuración, no hacer nada
+  if (config.includes('allowedHosts')) {
+    console.log(chalk.green('  ✓ astro.config.mjs ya configurado para dominios .test'))
+    return
+  }
+
+  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
+
+  // Manejar diferentes formatos de Astro config
+  if (config.includes('export default defineConfig({') && config.includes('});')) {
+    // Configuración con defineConfig vacía o con contenido
+    const configContentMatch = config.match(/export default defineConfig\(\{([\s\S]*?)\}\);/)
+    if (configContentMatch) {
+      const existingContent = configContentMatch[1].trim()
+      let newContent
+      
+      if (existingContent === '') {
+        // Configuración vacía
+        newContent = `
+  vite: {
+    server: {
+      host: true,
+      allowedHosts: ${allowedHosts},
+    },
+  },`
+      } else {
+        // Configuración existente
+        newContent = `
+  vite: {
+    server: {
+      host: true,
+      allowedHosts: ${allowedHosts},
+    },
+  },
+${existingContent}`
+      }
+      
+      config = config.replace(
+        /export default defineConfig\(\{[\s\S]*?\}\);/,
+        `export default defineConfig({${newContent}
+});`
+      )
+    }
+  } else {
+    // Fallback para otros formatos
+    config = config.replace(
+      'export default defineConfig({',
+      `export default defineConfig({
+  vite: {
+    server: {
+      host: true,
+      allowedHosts: ${allowedHosts},
+    },
+  },`
+    )
+  }
+
+  writeFileSync(configPath, config, 'utf8')
+  console.log(chalk.green('  ✓ astro.config.mjs configurado para dominios .test'))
+}
+
+/**
+ * Configura SvelteKit para permitir dominios .test
+ */
+function patchSvelteKitConfig(targetDir, projectSlug) {
+  const viteConfigPath = join(targetDir, 'vite.config.js')
+  
+  if (!existsSync(viteConfigPath)) {
+    console.log(chalk.yellow('  ⚠ vite.config.js no encontrado, saltando configuración'))
+    return
+  }
+
+  let config = readFileSync(viteConfigPath, 'utf8')
+  
+  // Si ya tiene la configuración, no hacer nada
+  if (config.includes('allowedHosts')) {
+    console.log(chalk.green('  ✓ vite.config.js ya configurado para dominios .test'))
+    return
+  }
+
+  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
+
+  // Añadir configuración de server allowedHosts
+  if (config.includes('export default defineConfig({')) {
+    config = config.replace(
+      'export default defineConfig({',
+      `export default defineConfig({
+  server: {
+    host: true,
+    allowedHosts: ${allowedHosts},
+  },`
+    )
+  } else {
+    // Configuración simple sin defineConfig
+    config = config.replace(
+      'export default {',
+      `export default {
+  server: {
+    host: true,
+    allowedHosts: ${allowedHosts},
+  },`
+    )
+  }
+
+  writeFileSync(viteConfigPath, config, 'utf8')
+  console.log(chalk.green('  ✓ vite.config.js configurado para dominios .test'))
+}
+
+/**
+ * Configura Nuxt para permitir dominios .test
+ */
+function patchNuxtConfig(targetDir, projectSlug) {
+  const configPath = join(targetDir, 'nuxt.config.ts')
+  
+  if (!existsSync(configPath)) {
+    console.log(chalk.yellow('  ⚠ nuxt.config.ts no encontrado, saltando configuración'))
+    return
+  }
+
+  let config = readFileSync(configPath, 'utf8')
+  
+  // Si ya tiene la configuración, no hacer nada
+  if (config.includes('allowedHosts')) {
+    console.log(chalk.green('  ✓ nuxt.config.ts ya configurado para dominios .test'))
+    return
+  }
+
+  // Añadir configuración de vite server allowedHosts
+  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
+
+  if (config.includes('export default defineNuxtConfig({')) {
+    config = config.replace(
+      'export default defineNuxtConfig({',
+      `export default defineNuxtConfig({
+  vite: {
+    server: {
+      host: true,
+      allowedHosts: ${allowedHosts},
+    },
+  },`
+    )
+  } else {
+    // Configuración simple sin defineNuxtConfig
+    config = config.replace(
+      'export default {',
+      `export default {
+  vite: {
+    server: {
+      host: true,
+      allowedHosts: ${allowedHosts},
+    },
+  },`
+    )
+  }
+
+  writeFileSync(configPath, config, 'utf8')
+  console.log(chalk.green('  ✓ nuxt.config.ts configurado para dominios .test'))
+}
+
+/**
+ * Configura Vite (vanilla) para permitir dominios .test
+ */
+function patchViteConfig(targetDir, projectSlug) {
+  const configPath = join(targetDir, 'vite.config.ts')
+  
+  if (!existsSync(configPath)) {
+    console.log(chalk.yellow('  ⚠ vite.config.ts no encontrado, saltando configuración'))
+    return
+  }
+
+  let config = readFileSync(configPath, 'utf8')
+  
+  // Si ya tiene la configuración, no hacer nada
+  if (config.includes('allowedHosts')) {
+    console.log(chalk.green('  ✓ vite.config.ts ya configurado para dominios .test'))
+    return
+  }
+
+  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
+
+  // Añadir configuración de server allowedHosts
+  if (config.includes('export default defineConfig({')) {
+    config = config.replace(
+      'export default defineConfig({',
+      `export default defineConfig({
+  server: {
+    host: true,
+    allowedHosts: ${allowedHosts},
+  },`
+    )
+  } else {
+    // Configuración simple sin defineConfig
+    config = config.replace(
+      'export default {',
+      `export default {
+  server: {
+    host: true,
+    allowedHosts: ${allowedHosts},
+  },`
+    )
+  }
+
+  writeFileSync(configPath, config, 'utf8')
+  console.log(chalk.green('  ✓ vite.config.ts configurado para dominios .test'))
+}
+
+/**
+ * Configura Next.js para permitir dominios .test
+ */
+function patchNextConfig(targetDir, projectSlug) {
+  const configPath = join(targetDir, 'next.config.ts')
+  const configPathJs = join(targetDir, 'next.config.js')
+  
+  let actualPath = null
+  if (existsSync(configPath)) {
+    actualPath = configPath
+  } else if (existsSync(configPathJs)) {
+    actualPath = configPathJs
+  } else {
+    console.log(chalk.yellow('  ⚠ next.config.ts/js no encontrado, saltando configuración'))
+    return
+  }
+
+  let config = readFileSync(actualPath, 'utf8')
+  
+  // Si ya tiene la configuración, no hacer nada
+  if (config.includes('allowedDevOrigins')) {
+    console.log(chalk.green('  ✓ next.config ya configurado para dominios .test'))
+    return
+  }
+
+  const allowedOrigins = `['${projectSlug}.test', '*.test', 'localhost']`
+
+  if (actualPath.endsWith('.ts')) {
+    // Configuración TypeScript
+    if (config.includes('const nextConfig: NextConfig = {')) {
+      config = config.replace(
+        'const nextConfig: NextConfig = {',
+        `const nextConfig: NextConfig = {
+  allowedDevOrigins: ${allowedOrigins},`
+      )
+    } else if (config.includes('/* config options here */')) {
+      config = config.replace(
+        '/* config options here */',
+        `allowedDevOrigins: ${allowedOrigins},`
+      )
+    }
+  } else {
+    // Configuración JavaScript
+    if (config.includes('const nextConfig = {')) {
+      config = config.replace(
+        'const nextConfig = {',
+        `const nextConfig = {
+  allowedDevOrigins: ${allowedOrigins},`
+      )
+    } else if (config.includes('module.exports = {')) {
+      config = config.replace(
+        'module.exports = {',
+        `module.exports = {
+  allowedDevOrigins: ${allowedOrigins},`
+      )
+    }
+  }
+
+  writeFileSync(actualPath, config, 'utf8')
+  console.log(chalk.green('  ✓ next.config configurado para dominios .test'))
 }

@@ -18,7 +18,7 @@ export function detectOS() {
 }
 
 /**
- * Verifica si un binario está disponible en el PATH.
+ * Verifica si un binario está disponible en el PATH o instalado por brew.
  */
 export function hasBin(name) {
   try {
@@ -26,6 +26,15 @@ export function hasBin(name) {
     execaSync(cmd, [name])
     return true
   } catch {
+    // Si no está en PATH, verificar si está instalado por brew (macOS)
+    if (process.platform === 'darwin' && name === 'dnsmasq') {
+      try {
+        execaSync('brew', ['list', name], { stdio: 'pipe' })
+        return true
+      } catch {
+        return false
+      }
+    }
     return false
   }
 }
@@ -105,9 +114,20 @@ export function getDevkitContainers() {
  * Checa si dnsmasq está configurado para .test
  */
 export function isDnsmasqConfigured() {
+  // Detectar el prefix de Homebrew dinámicamente
+  let brewPrefix = '/usr/local'
+  try {
+    const { stdout } = execaSync('brew', ['--prefix'], { stdio: 'pipe' })
+    brewPrefix = stdout.trim()
+  } catch {
+    // Fallback: intentar detectar si estamos en ARM
+    if (existsSync('/opt/homebrew')) {
+      brewPrefix = '/opt/homebrew'
+    }
+  }
+
   const configPaths = [
-    '/opt/homebrew/etc/dnsmasq.d/test.conf',  // macOS ARM
-    '/usr/local/etc/dnsmasq.d/test.conf',      // macOS Intel
+    `${brewPrefix}/etc/dnsmasq.d/test.conf`,  // macOS (dinámico)
     '/etc/dnsmasq.d/test.conf',                // Linux
   ]
 
@@ -120,8 +140,7 @@ export function isDnsmasqConfigured() {
 
   // También revisar el archivo principal
   const mainConfigs = [
-    '/opt/homebrew/etc/dnsmasq.conf',
-    '/usr/local/etc/dnsmasq.conf',
+    `${brewPrefix}/etc/dnsmasq.conf`,
     '/etc/dnsmasq.conf',
   ]
 

@@ -4,6 +4,7 @@ import { execa } from 'execa'
 import { existsSync, writeFileSync, mkdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { spawnSync } from 'child_process'
+import os from 'os'
 import {
   detectOS,
   hasBin,
@@ -140,12 +141,16 @@ export async function setup(opts) {
   // ─── 2. Configurar mkcert CA ────────────────────────────────────────────
   console.log('')
   if (hasBin('mkcert')) {
-    const spinner = ora('  Configurando CA local (mkcert)...').start()
+    console.log(chalk.blue('  Configurando CA local (mkcert)...'))
+    if (osType === 'macos') {
+      console.log(chalk.dim('  Acepta el diálogo de macOS para agregar el certificado al keychain.'))
+    }
     try {
-      await execa('mkcert', ['-install'], { stdio: 'pipe' })
-      spinner.succeed('  CA local instalada (mkcert -install)')
+      // Usar stdio: 'inherit' para que el usuario pueda interactuar con prompts de seguridad
+      await execa('mkcert', ['-install'], { stdio: 'inherit' })
+      console.log(`  ${chalk.green('✔')} CA local instalada (mkcert -install)`)
     } catch (e) {
-      spinner.fail(`  mkcert -install falló: ${e.shortMessage ?? e.message}`)
+      console.log(`  ${chalk.red('✗')} mkcert -install falló: ${e.shortMessage ?? e.message}`)
     }
   }
 
@@ -155,13 +160,18 @@ export async function setup(opts) {
 
 // ─── 4. Instalar globalmente el paquete ─────────────────────────────────
   console.log('')
-  const spinLink = ora('  Enlazando devkit globalmente (npm link)...').start()
+  console.log(chalk.blue('  Enlazando devkit globalmente (npm link)...'))
+  console.log(chalk.dim('  Esto puede requerir permisos de administrador si npm está en /usr/local'))
+  
   try {
     // Si estamos en un shell elevado en windows, 'npm link' funcionará bien.
-    await execa('npm', ['link'], { stdio: 'pipe' })
-    spinLink.succeed('  CLI "devkit" enlazado globalmente.')
+    await execa('npm', ['link'], { stdio: 'inherit' })
+    console.log(`  ${chalk.green('✔')} CLI "devkit" enlazado globalmente.`)
   } catch (e) {
-    spinLink.fail(`  Error al enlazar devkit globalmente. Asegúrate de correr 'npm link' en la carpeta base.`)
+    console.log(`  ${chalk.red('✗')} Error al enlazar devkit globalmente.`)
+    console.log(chalk.yellow('      Intenta ejecutar manualmente en esta carpeta:'))
+    console.log(chalk.cyan('      sudo npm link'))
+    console.log(chalk.dim('      (o configura npm para no necesitar sudo)'))
   }
 
   // ─── 5. Resultado ────────────────────────────────────────────────────────
@@ -279,20 +289,31 @@ async function setupDns(osType, pm) {
 
 async function setupDnsMac() {
   if (!hasBin('dnsmasq')) {
-    const spinner = ora('  Instalando dnsmasq...').start()
+    console.log(chalk.blue('  Instalando dnsmasq...'))
     try {
-      await execa('brew', ['install', 'dnsmasq'], { stdio: 'pipe' })
-      spinner.succeed('  dnsmasq instalado')
+      // Mostrar progreso de brew
+      await execa('brew', ['install', 'dnsmasq'], { stdio: 'inherit' })
+      console.log(`  ${chalk.green('✔')} dnsmasq instalado`)
     } catch (e) {
-      spinner.fail(`  dnsmasq — error: ${e.shortMessage ?? e.message}`)
+      console.log(`  ${chalk.red('✗')} dnsmasq — error: ${e.shortMessage ?? e.message}`)
       return
     }
   }
 
-  const confDirs = ['/opt/homebrew/etc/dnsmasq.d', '/usr/local/etc/dnsmasq.d']
-  let confDir = confDirs.find(d => existsSync(d))
-  if (!confDir) {
-    confDir = confDirs[0]
+  // Detectar el prefix de Homebrew (Intel o ARM)
+  let brewPrefix = '/usr/local'
+  try {
+    const { stdout } = await execa('brew', ['--prefix'], { stdio: 'pipe' })
+    brewPrefix = stdout.trim()
+  } catch {
+    // Fallback: intentar detectar si estamos en ARM
+    if (existsSync('/opt/homebrew')) {
+      brewPrefix = '/opt/homebrew'
+    }
+  }
+
+  const confDir = join(brewPrefix, 'etc', 'dnsmasq.d')
+  if (!existsSync(confDir)) {
     mkdirSync(confDir, { recursive: true })
   }
 
@@ -305,23 +326,40 @@ async function setupDnsMac() {
   }
 
   if (!existsSync('/etc/resolver/test')) {
-    const spinner = ora('  Creando /etc/resolver/test...').start()
+    console.log('')
+    console.log(chalk.yellow('  🔐 Se necesita contraseña de administrador para configurar DNS'))
+    console.log(chalk.dim('      Esto creará /etc/resolver/test para resolución automática de dominios *.test'))
+    console.log('')
+    
     try {
-      await runPrivileged('mkdir', ['-p', '/etc/resolver'], { stdio: 'pipe' })
-      await execa('bash', ['-c', 'echo "nameserver 127.0.0.1" | sudo tee /etc/resolver/test'], { stdio: 'pipe' })
-      spinner.succeed('  /etc/resolver/test creado')
+      await runPrivileged('mkdir', ['-p', '/etc/resolver'], { stdio: 'inherit' })
+      const tempFile = join(os.tmpdir(), 'devkit-resolver-test')
+      writeFileSync(tempFile, 'nameserver 127.0.0.1\n', 'utf8')
+      await runPrivileged('cp', [tempFile, '/etc/resolver/test'], { stdio: 'inherit' })
+      console.log(`  ${chalk.green('✔')} /etc/resolver/test creado`)
     } catch {
-      spinner.fail('  No se pudo crear /etc/resolver/test — ejecuta manualmente con sudo')
+      console.log(`  ${chalk.red('✗')} No se pudo crear /etc/resolver/test — ejecuta manualmente con sudo`)
     }
   } else {
     console.log(`  ${chalk.green('✔')} /etc/resolver/test ya existe`)
   }
 
   try {
-    await execa('sudo', ['brew', 'services', 'restart', 'dnsmasq'], { stdio: 'pipe' })
-    console.log(`  ${chalk.green('✔')} dnsmasq reiniciado`)
+    // Reiniciar dnsmasq con brew services (sin sudo, ya que brew services lo maneja)
+    await execa('brew', ['services', 'restart', 'dnsmasq'], { stdio: 'pipe' })
+    
+    // Verificar que el servicio esté corriendo
+    const { stdout } = await execa('brew', ['services', 'list'], { stdio: 'pipe' })
+    if (stdout.includes('dnsmasq') && stdout.includes('started')) {
+      console.log(`  ${chalk.green('✔')} dnsmasq reiniciado y corriendo`)
+    } else if (stdout.includes('dnsmasq') && stdout.includes('error')) {
+      console.log(`  ${chalk.yellow('⚠')} dnsmasq instalado pero con error al iniciar`)
+      console.log(chalk.dim('    Intenta: sudo brew services restart dnsmasq'))
+    } else {
+      console.log(`  ${chalk.green('✔')} dnsmasq reiniciado`)
+    }
   } catch {
-    console.log(`  ${chalk.yellow('!')} No se pudo reiniciar dnsmasq — ejecuta: sudo brew services restart dnsmasq`)
+    console.log(`  ${chalk.yellow('!')} No se pudo reiniciar dnsmasq — ejecuta: brew services restart dnsmasq`)
   }
 }
 

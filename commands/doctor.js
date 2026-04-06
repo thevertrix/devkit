@@ -116,6 +116,26 @@ export async function doctor() {
   } else {
     const dnsmasqInstalled = hasBin('dnsmasq')
     const dnsmasqConfigured = isDnsmasqConfigured()
+    
+    // Verificar si el servicio está corriendo (macOS)
+    let dnsmasqRunning = false
+    if (os === 'macos' && dnsmasqInstalled) {
+      try {
+        // Primero verificar con brew services
+        const { stdout } = execaSync('brew', ['services', 'list'], { stdio: 'pipe' })
+        dnsmasqRunning = stdout.includes('dnsmasq') && stdout.includes('started')
+        
+        // Si brew services dice que hay error, verificar el proceso directamente
+        if (!dnsmasqRunning && stdout.includes('dnsmasq')) {
+          try {
+            const { stdout: psOutput } = execaSync('pgrep', ['dnsmasq'], { stdio: 'pipe' })
+            dnsmasqRunning = psOutput.trim().length > 0
+          } catch {
+            // pgrep no encontró proceso dnsmasq
+          }
+        }
+      } catch {}
+    }
 
     if (!dnsmasqInstalled) {
       allGood = false
@@ -125,6 +145,9 @@ export async function doctor() {
       allGood = false
       console.log(`  ${chalk.yellow('!')} dnsmasq  instalado pero sin config .test`)
       console.log(`    ${chalk.dim('→')} ${chalk.yellow('Ejecuta: devkit setup')}`)
+    } else if (!dnsmasqRunning && os === 'macos') {
+      console.log(`  ${chalk.yellow('!')} dnsmasq  configurado pero no está corriendo`)
+      console.log(`    ${chalk.dim('→')} ${chalk.yellow('sudo brew services restart dnsmasq')}`)
     } else {
       console.log(`  ${chalk.green('✔')} dnsmasq  configurado para *.test`)
     }

@@ -40,6 +40,14 @@ export async function start(options = {}) {
   const cwd = process.cwd()
   const projectName = basename(cwd).toLowerCase().replace(/[^a-z0-9]/g, '-')
 
+  // Evitar ejecutar en el propio directorio de devkit
+  if (projectName === 'devkit' && existsSync(join(cwd, 'bin', 'devkit.js'))) {
+    console.log(chalk.red('\n⚠ No puedes ejecutar "devkit start" en el propio directorio de devkit'))
+    console.log(chalk.yellow('  Para crear un proyecto nuevo, usa: devkit new mi-proyecto'))
+    console.log(chalk.dim('  Para ver proyectos existentes, usa: devkit list\n'))
+    process.exit(1)
+  }
+
   console.log(chalk.cyan(`\n🚀 Iniciando entorno de desarrollo para: ${chalk.bold(projectName)}`))
 
   // 1. Detectar framework y puerto
