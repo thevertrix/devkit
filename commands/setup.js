@@ -153,7 +153,18 @@ export async function setup(opts) {
   console.log('')
   await setupDns(osType, pm)
 
-  // ─── 4. Resultado ────────────────────────────────────────────────────────
+// ─── 4. Instalar globalmente el paquete ─────────────────────────────────
+  console.log('')
+  const spinLink = ora('  Enlazando devkit globalmente (npm link)...').start()
+  try {
+    // Si estamos en un shell elevado en windows, 'npm link' funcionará bien.
+    await execa('npm', ['link'], { stdio: 'pipe' })
+    spinLink.succeed('  CLI "devkit" enlazado globalmente.')
+  } catch (e) {
+    spinLink.fail(`  Error al enlazar devkit globalmente. Asegúrate de correr 'npm link' en la carpeta base.`)
+  }
+
+  // ─── 5. Resultado ────────────────────────────────────────────────────────
   console.log('')
   console.log(chalk.dim('  ─────────────────────────────────────────'))
   console.log(`  ${chalk.green('✔')} Setup completo.`)

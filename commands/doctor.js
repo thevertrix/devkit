@@ -1,9 +1,12 @@
 import chalk from 'chalk'
+import { execaSync } from 'execa'
 import {
   detectOS,
   hasBin,
   getBinVersion,
   isDockerRunning,
+  hasDockerCompose,
+  getDevkitContainers,
   isDnsmasqConfigured,
   isResolverConfigured,
   installHint,
@@ -22,11 +25,10 @@ export async function doctor() {
   console.log(chalk.dim('  Binarios\n'))
 
   const bins = [
-    { name: 'mkcert',  required: true,  label: 'mkcert  (SSL)' },
-    { name: 'caddy',   required: true,  label: 'caddy   (proxy)' },
-    { name: 'docker',  required: true,  label: 'docker  (mail + DB)' },
-    { name: 'php',     required: false, label: 'php     (opcional)' },
-    { name: 'node',    required: true,  label: 'node    (runtime)' },
+    { name: 'mkcert',  required: true,  label: 'mkcert          (SSL)' },
+    { name: 'caddy',   required: true,  label: 'caddy           (proxy)' },
+    { name: 'docker',  required: true,  label: 'docker          (contenedores)' },
+    { name: 'node',    required: true,  label: 'node            (runtime)' },
   ]
 
   for (const dep of bins) {
@@ -36,17 +38,49 @@ export async function doctor() {
     if (found) {
       const ver = version ? chalk.dim(` ${version}`) : ''
       console.log(`  ${chalk.green('✔')} ${dep.label}${ver}`)
-    } else if (dep.required) {
+    } else {
       allGood = false
       const hint = installHint(dep.name, os)
       console.log(`  ${chalk.red('✗')} ${dep.label}`)
       console.log(`    ${chalk.dim('→')} ${chalk.yellow(hint)}`)
-    } else {
-      console.log(`  ${chalk.dim('–')} ${dep.label}  ${chalk.dim('(no instalado)')}`)
     }
   }
 
-  // ─── Docker corriendo ───────────────────────────────────────────────────
+  // docker compose (v2) — check via subcommand, not binary
+  const composeOk = hasDockerCompose()
+  if (composeOk) {
+    const composeVer = getDockerComposeVersion()
+    console.log(`  ${chalk.green('✔')} docker compose  (orquestación)${composeVer ? chalk.dim(` ${composeVer}`) : ''}`)
+  } else {
+    allGood = false
+    console.log(`  ${chalk.red('✗')} docker compose  (orquestación)`)
+    console.log(`    ${chalk.dim('→')} ${chalk.yellow(installHint('docker-compose', os))}`)
+  }
+
+  // ─── Runtimes opcionales ────────────────────────────────────────────────
+  console.log('')
+  console.log(chalk.dim('  Runtimes\n'))
+
+  // php
+  const phpFound = hasBin('php')
+  if (phpFound) {
+    const phpVer = getBinVersion('php') ?? ''
+    console.log(`  ${chalk.green('✔')} php${phpVer ? chalk.dim(`             ${phpVer}`) : ''}`)
+  } else {
+    console.log(`  ${chalk.dim('–')} php             ${chalk.dim('(no instalado)')}`)
+  }
+
+  // composer
+  const composerFound = hasBin('composer')
+  if (composerFound) {
+    const composerVer = getBinVersion('composer') ?? ''
+    console.log(`  ${chalk.green('✔')} composer${composerVer ? chalk.dim(`        ${composerVer}`) : ''}`)
+  } else {
+    console.log(`  ${chalk.dim('–')} composer        ${chalk.dim('(no instalado)')}`)
+    console.log(`    ${chalk.dim('→')} ${chalk.yellow(installHint('composer', os))}`)
+  }
+
+  // ─── Servicios (Docker) ─────────────────────────────────────────────────
   console.log('')
   console.log(chalk.dim('  Servicios\n'))
 
@@ -57,6 +91,18 @@ export async function doctor() {
     allGood = false
     console.log(`  ${chalk.red('✗')} Docker instalado pero no está corriendo`)
     console.log(`    ${chalk.dim('→')} ${chalk.yellow('Inicia Docker Desktop o el daemon')}`)
+  }
+
+  // Contenedores devkit
+  if (dockerRunning) {
+    const containers = getDevkitContainers()
+    if (containers.length > 0) {
+      for (const c of containers) {
+        console.log(`  ${chalk.green('✔')} ${c.name}  ${chalk.dim(c.status)}`)
+      }
+    } else {
+      console.log(chalk.dim('    Sin proyectos configurados — usa devkit new'))
+    }
   }
 
   // ─── DNS ────────────────────────────────────────────────────────────────
@@ -101,6 +147,15 @@ export async function doctor() {
     console.log(`  ${chalk.bgGreen.black(' LISTO ')} Todo en orden. Usa ${chalk.cyan('devkit new <nombre>')} para crear un proyecto.\n`)
   } else {
     console.log(`  ${chalk.bgYellow.black(' ACCIÓN REQUERIDA ')} Resuelve los items marcados con ${chalk.red('✗')} y vuelve a correr ${chalk.cyan('devkit doctor')}.\n`)
+  }
+}
+
+function getDockerComposeVersion() {
+  try {
+    const { stdout } = execaSync('docker', ['compose', 'version'], { stderr: 'ignore' })
+    return stdout.split('\n')[0].trim()
+  } catch {
+    return null
   }
 }
 

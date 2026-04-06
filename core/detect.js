@@ -35,8 +35,12 @@ export function hasBin(name) {
  */
 export function getBinVersion(name, flag = '--version') {
   try {
-    const { stdout } = execaSync(name, [flag], { stderr: 'ignore' })
-    return stdout.split('\n')[0].trim()
+    const { stdout } = execaSync(name, [flag], {
+      stderr: 'ignore',
+      env: { ...process.env, NO_COLOR: '1' },
+    })
+    // Limpiar códigos ANSI residuales
+    return stdout.split('\n')[0].replace(/\x1B\[[0-9;]*m/g, '').trim()
   } catch {
     return null
   }
@@ -51,6 +55,49 @@ export function isDockerRunning() {
     return true
   } catch {
     return false
+  }
+}
+
+/**
+ * Verifica si docker compose (v2) está disponible.
+ */
+export function hasDockerCompose() {
+  try {
+    execaSync('docker', ['compose', 'version'], { stderr: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Verifica si un contenedor Docker específico está corriendo.
+ */
+export function isContainerRunning(name) {
+  try {
+    const { stdout } = execaSync('docker', ['ps', '--filter', `name=${name}`, '--format', '{{.Names}}'], { stderr: 'ignore' })
+    return stdout.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Obtiene la lista de contenedores devkit corriendo.
+ * @returns {{ name: string, status: string }[]}
+ */
+export function getDevkitContainers() {
+  try {
+    // Listamos todos los contenedores y luego la función que los llame se encarga
+    // de verificar si su nombre tiene sufijos como -mailpit, -mysql, etc.
+    const { stdout } = execaSync('docker', ['ps', '--format', '{{.Names}} {{.Status}}'], { stderr: 'ignore' })
+    if (!stdout.trim()) return []
+    return stdout.trim().split('\n').map(line => {
+      const [name, ...rest] = line.split(' ')
+      return { name, status: rest.join(' ') }
+    })
+  } catch {
+    return []
   }
 }
 
@@ -93,6 +140,58 @@ export function isDnsmasqConfigured() {
  */
 export function isResolverConfigured() {
   return existsSync('/etc/resolver/test')
+}
+
+/**
+ * Detecta el framework de un proyecto.
+ * @param {string} dir Directorio del proyecto.
+ * @returns {string | null} El nombre del framework detectado.
+ */
+export function detectFramework(dir = process.cwd()) {
+  const packageJsonPath = `${dir}/package.json`
+  const composerJsonPath = `${dir}/composer.json`
+
+  if (existsSync(composerJsonPath)) {
+    const composer = JSON.parse(readFileSync(composerJsonPath, 'utf8'))
+    const deps = { ...composer.require, ...composer['require-dev'] }
+    if (deps['laravel/framework']) return 'laravel'
+  }
+
+  if (existsSync(packageJsonPath)) {
+    const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8'))
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+
+    if (deps['next']) return 'nextjs'
+    if (deps['nuxt']) return 'nuxtjs'
+    if (deps['@nestjs/core']) return 'nestjs'
+    if (deps['@angular/core']) return 'angular'
+    if (deps['astro']) return 'astro'
+    if (deps['svelte']) return 'svelte' // También puede ser @sveltejs/kit
+    if (deps['@sveltejs/kit']) return 'sveltekit'
+    if (deps['vite']) return 'vite'
+  }
+
+  return null
+}
+
+/**
+ * Obtiene el puerto por defecto de un framework.
+ * @param {string} framework Nombre del framework.
+ * @returns {number | null} El puerto por defecto.
+ */
+export function getFrameworkDefaultPort(framework) {
+  const ports = {
+    laravel: 8000,
+    nextjs: 3000,
+    nuxtjs: 3000,
+    nestjs: 3000,
+    angular: 4200,
+    astro: 4321,
+    svelte: 5173,
+    sveltekit: 5173,
+    vite: 5173,
+  }
+  return ports[framework] || null
 }
 
 /**
@@ -163,6 +262,18 @@ export function installHint(dep, osType) {
       linux:   'sudo apt install nodejs  # o: https://nodejs.org',
       wsl:     'sudo apt install nodejs',
       windows: 'https://nodejs.org  # o: choco install nodejs',
+    },
+    composer: {
+      macos:   'devkit setup --php',
+      linux:   'devkit setup --php',
+      wsl:     'devkit setup --php',
+      windows: 'devkit setup --php',
+    },
+    'docker-compose': {
+      macos:   'Se incluye con Docker Desktop',
+      linux:   'Se incluye con Docker Desktop',
+      wsl:     'Se incluye con Docker Desktop',
+      windows: 'Se incluye con Docker Desktop',
     },
   }
 

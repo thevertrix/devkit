@@ -34,7 +34,14 @@ program
   .command('new <name>')
   .description('Crea un nuevo proyecto con dominio .test y SSL')
   .option('-p, --port <port>', 'puerto local del servidor', '3000')
-  .option('--php', 'usar PHP en lugar de Node.js')
+  .option('--php', 'crear un esqueleto basico de PHP')
+  .option('--laravel', 'crear un proyecto de Laravel (requiere composer)')
+  .option('--next', 'crear un proyecto de Next.js')
+  .option('--nuxt', 'crear un proyecto de Nuxt.js')
+  .option('--angular', 'crear un proyecto de Angular')
+  .option('--nestjs', 'crear un proyecto de NestJS')
+  .option('--astro', 'crear un proyecto de Astro')
+  .option('--svelte', 'crear un proyecto de SvelteKit')
   .action(async (name, opts) => {
     const { newProject } = await import('../commands/new.js')
     await newProject(name, opts)
@@ -42,10 +49,14 @@ program
 
 program
   .command('start')
-  .description('Levanta todos los servicios (Caddy, Mailpit, Docker)')
-  .action(async () => {
+  .description('Levanta el proyecto y los servicios en Docker si los requiere')
+  .option('--mysql', 'Agrega un contenedor MySQL')
+  .option('--postgres', 'Agrega un contenedor PostgreSQL')
+  .option('--redis', 'Agrega un contenedor Redis')
+  .option('--mailpit', 'Agrega un contenedor Mailpit (correo falso)')
+  .action(async (opts) => {
     const { start } = await import('../commands/start.js')
-    await start()
+    await start(opts)
   })
 
 program

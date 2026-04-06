@@ -1,0 +1,22 @@
+# docker-compose.yml generado por devkit
+# Proyecto: devkit
+
+services:
+  mailpit:
+    image: axllent/mailpit
+    container_name: devkit-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - devkit
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  devkit:
+    driver: bridge

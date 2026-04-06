@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>devkit</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --border: #262626;
+      --text: #e5e5e5;
+      --text-dim: #737373;
+      --accent: #22d3ee;
+      --accent-dim: #164e63;
+      --green: #4ade80;
+      --yellow: #facc15;
+      --red: #f87171;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 720px;
+      width: 100%;
+    }
+
+    header {
+      margin-bottom: 3rem;
+    }
+
+    .logo {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.25rem;
+    }
+
+    .logo span { color: var(--accent); }
+
+    .tagline {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+
+    h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    section { margin-bottom: 2.5rem; }
+
+    /* Projects */
+    .projects-list {
+      list-style: none;
+    }
+
+    .project {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      transition: border-color 0.15s;
+    }
+
+    .project:hover {
+      border-color: var(--accent-dim);
+    }
+
+    .project-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .project-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .project-framework {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      background: var(--border);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .project-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.85rem;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+
+    .project-link:hover { opacity: 1; }
+
+    .empty {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      padding: 1.5rem;
+      text-align: center;
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
+
+    /* Commands */
+    .commands {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .cmd {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      padding: 0.6rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .cmd code {
+      color: var(--accent);
+      white-space: nowrap;
+      font-size: 0.85rem;
+      min-width: 220px;
+    }
+
+    .cmd span {
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+
+    /* Quick start */
+    .quickstart {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .quickstart ol {
+      list-style: none;
+      counter-reset: step;
+    }
+
+    .quickstart li {
+      counter-increment: step;
+      padding: 0.35rem 0;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
+    .quickstart li::before {
+      content: counter(step) ".";
+      color: var(--accent);
+      font-weight: 600;
+      margin-right: 0.75rem;
+    }
+
+    .quickstart code {
+      color: var(--text);
+      background: var(--bg);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    footer {
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      text-align: center;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo"><span>dev</span>kit</div>
+      <p class="tagline">Local dev environment &mdash; SSL, .test domains, Docker services, mail</p>
+    </header>
+
+    <section>
+      <h2>Proyectos</h2>
+      {{PROJECTS_LIST}}
+    </section>
+
+    <section>
+      <h2>Inicio rapido</h2>
+      <div class="quickstart">
+        <ol>
+          <li>Ejecuta <code>devkit new mi-app --laravel</code> para crear un proyecto</li>
+          <li>Entra al directorio: <code>cd ~/devkit-projects/mi-app</code></li>
+          <li>Levanta el entorno: <code>devkit start</code></li>
+          <li>Abre <code>https://mi-app.test</code> en tu navegador</li>
+        </ol>
+      </div>
+    </section>
+
+    <section>
+      <h2>Comandos</h2>
+      <div class="commands">
+        <div class="cmd"><code>devkit new &lt;name&gt; --laravel</code> <span>Crear proyecto Laravel</span></div>
+        <div class="cmd"><code>devkit new &lt;name&gt; --next</code> <span>Crear proyecto Next.js</span></div>
+        <div class="cmd"><code>devkit new &lt;name&gt; --nuxt</code> <span>Crear proyecto Nuxt</span></div>
+        <div class="cmd"><code>devkit new &lt;name&gt; --astro</code> <span>Crear proyecto Astro</span></div>
+        <div class="cmd"><code>devkit start</code> <span>Levantar entorno del proyecto actual</span></div>
+        <div class="cmd"><code>devkit stop</code> <span>Detener todos los servicios</span></div>
+        <div class="cmd"><code>devkit start --mysql</code> <span>Levantar con MySQL en Docker</span></div>
+        <div class="cmd"><code>devkit start --mailpit</code> <span>Levantar con Mailpit (correo)</span></div>
+        <div class="cmd"><code>devkit doctor</code> <span>Verificar dependencias</span></div>
+        <div class="cmd"><code>devkit list</code> <span>Ver proyectos registrados</span></div>
+        <div class="cmd"><code>devkit mail</code> <span>Abrir Mailpit en el navegador</span></div>
+      </div>
+    </section>
+
+    <footer>
+      devkit v{{VERSION}} &mdash; Generado el {{DATE}}
+    </footer>
+  </div>
+</body>
+</html>
