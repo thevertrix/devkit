@@ -5,12 +5,18 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const pkg = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'))
+
+// esbuild define injects __PKG_VERSION__ at build time.
+// typeof is safe for undeclared variables — no ReferenceError.
+/* global __PKG_VERSION__ */
+const version = typeof __PKG_VERSION__ !== 'undefined'
+  ? __PKG_VERSION__
+  : JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8')).version
 
 program
   .name('devkit')
   .description('Local dev environment — SSL, .test domains, mail')
-  .version(pkg.version)
+  .version(version)
 
 // Commands (lazy import so errors are isolated)
 program

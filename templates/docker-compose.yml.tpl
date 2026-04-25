@@ -80,14 +80,17 @@ services:
 {{/MAILPIT}}
 {{#PHP}}
   php:
-    image: php:{{PHP_VERSION}}-fpm
+    image: php:{{PHP_VERSION}}-cli
     container_name: {{PROJECT_NAME}}-php
     restart: unless-stopped
     working_dir: /var/www
+    ports:
+      - "{{APP_PORT}}:{{APP_PORT}}"
     volumes:
       - .:/var/www
     networks:
       - devkit
+    command: {{PHP_COMMAND}}
 {{/PHP}}
 {{#NODE}}
   node:
@@ -95,12 +98,14 @@ services:
     container_name: {{PROJECT_NAME}}-node
     restart: unless-stopped
     working_dir: /app
+    ports:
+      - "{{APP_PORT}}:{{APP_PORT}}"
     volumes:
       - .:/app
       - node_modules:/app/node_modules
     networks:
       - devkit
-    command: sh -c "npm install && npm run dev"
+    command: {{NODE_COMMAND}}
 {{/NODE}}
 {{#PYTHON}}
   python:
@@ -108,6 +113,8 @@ services:
     container_name: {{PROJECT_NAME}}-python
     restart: unless-stopped
     working_dir: /app
+    ports:
+      - "{{APP_PORT}}:{{APP_PORT}}"
     volumes:
       - .:/app
     networks:

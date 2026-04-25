@@ -291,8 +291,8 @@
           <p class="tagline">Local dev environment &mdash; SSL, .test domains, versioned services &amp; runtimes</p>
 
           <div class="quickstart-side">
-            <div>01 <code>devkit new mi-app --laravel</code></div>
-            <div>02 <code>cd ~/devkit-projects/mi-app</code></div>
+            <div>01 <code>devkit setup</code></div>
+            <div>02 <code>devkit new mi-app --laravel</code></div>
             <div>03 <code>devkit start --mysql --mailpit</code></div>
           </div>
 
@@ -311,9 +311,9 @@
           <section>
             <h2>Inicio rapido</h2>
             <div class="cmd-grid">
-              <div class="cmd"><code>devkit new mi-app --laravel</code><span>Ejecuta para crear un proyecto</span></div>
-              <div class="cmd"><code>cd ~/devkit-projects/mi-app</code><span>Entra al directorio del proyecto</span></div>
-              <div class="cmd"><code>devkit start --mysql --mailpit</code><span>Levanta el entorno</span></div>
+              <div class="cmd"><code>devkit setup</code><span>Solo la primera vez — instala todo y crea wrappers</span></div>
+              <div class="cmd"><code>devkit new mi-app --laravel</code><span>Crear proyecto con dominio .test y SSL</span></div>
+              <div class="cmd"><code>devkit start --mysql --mailpit</code><span>Levanta el entorno del proyecto</span></div>
               <div class="cmd"><code>https://mi-app.test</code><span>Abre en tu navegador</span></div>
             </div>
           </section>
@@ -321,8 +321,7 @@
           <section>
             <h2>Comandos Principales</h2>
             <div class="cmd-grid">
-              <div class="cmd"><code>devkit setup</code><span>Instala y configura dependencias automaticamente</span></div>
-              <div class="cmd"><code>devkit setup --php</code><span>Incluye PHP durante setup</span></div>
+              <div class="cmd"><code>devkit setup</code><span>Instala Caddy, mkcert, Docker y crea wrappers de runtime vía Docker</span></div>
               <div class="cmd"><code>devkit new &lt;name&gt; --laravel</code><span>Crear proyecto Laravel</span></div>
               <div class="cmd"><code>devkit new &lt;name&gt; --php</code><span>Crear esqueleto basico PHP</span></div>
               <div class="cmd"><code>devkit new &lt;name&gt; --next</code><span>Crear proyecto Next.js</span></div>
@@ -335,9 +334,37 @@
               <div class="cmd"><code>devkit stop</code><span>Detener todos los servicios y proxy</span></div>
               <div class="cmd"><code>devkit stop --mysql --redis</code><span>Detener servicios puntuales</span></div>
               <div class="cmd"><code>devkit stop --php --node --python</code><span>Detener runtimes puntuales</span></div>
-              <div class="cmd"><code>devkit doctor</code><span>Verificar dependencias</span></div>
+              <div class="cmd"><code>devkit doctor</code><span>Verificar estado — muestra runtimes locales o vía Docker</span></div>
               <div class="cmd"><code>devkit list</code><span>Ver proyectos registrados</span></div>
               <div class="cmd"><code>devkit mail</code><span>Abrir Mailpit en el navegador</span></div>
+            </div>
+          </section>
+
+          <section>
+            <h2>Runtimes locales vía Docker</h2>
+            <div class="cmd-grid">
+              <div class="cmd"><code>node -v</code><span>Ejecuta node en contenedor Docker (tras devkit setup)</span></div>
+              <div class="cmd"><code>npm install</code><span>npm también resuelve en contenedor</span></div>
+              <div class="cmd"><code>php -v</code><span>PHP en contenedor — sin instalar localmente</span></div>
+              <div class="cmd"><code>composer install</code><span>Composer en contenedor</span></div>
+              <div class="cmd"><code>python --version</code><span>Python en contenedor</span></div>
+              <div class="cmd"><code>pip install requests</code><span>pip también resuelve en contenedor</span></div>
+              <div class="cmd"><code>devkit services --set --node=22</code><span>Cambiar version y volver a correr devkit setup</span></div>
+              <div class="cmd"><code>devkit services --set --php=8.2</code><span>Cambiar version PHP del wrapper</span></div>
+            </div>
+          </section>
+
+          <section>
+            <h2>Runtimes en proyecto (devkit start)</h2>
+            <div class="cmd-grid">
+              <div class="cmd"><code>devkit start --node=20</code><span>Servidor dev del proyecto en contenedor Node 20</span></div>
+              <div class="cmd"><code>devkit start --php=8.3</code><span>Servidor dev del proyecto en contenedor PHP 8.3</span></div>
+              <div class="cmd"><code>devkit start --python=3.12</code><span>Contenedor Python listo en el puerto del proyecto</span></div>
+              <div class="cmd"><code>devkit stop --node</code><span>Detener contenedor Node.js del proyecto</span></div>
+              <div class="cmd"><code>devkit stop --php</code><span>Detener contenedor PHP del proyecto</span></div>
+              <div class="cmd"><code>devkit stop --python</code><span>Detener contenedor Python del proyecto</span></div>
+              <div class="cmd"><code>devkit services --set --node=20</code><span>Version Node por defecto para nuevos proyectos</span></div>
+              <div class="cmd"><code>devkit services --set --python=3.12</code><span>Version Python por defecto</span></div>
             </div>
           </section>
 
@@ -349,36 +376,17 @@
               <div class="cmd"><code>devkit start --postgres=15</code><span>PostgreSQL 15</span></div>
               <div class="cmd"><code>devkit start --redis=7</code><span>Redis 7</span></div>
               <div class="cmd"><code>devkit start --mailpit</code><span>Mailpit (servidor de correo)</span></div>
-              <div class="cmd"><code>devkit start --mailpit=latest</code><span>Mailpit con version especifica</span></div>
-              <div class="cmd"><code>devkit services --list</code><span>Ver versiones por defecto</span></div>
-              <div class="cmd"><code>devkit services --set</code><span>Configurar versiones por defecto</span></div>
+              <div class="cmd"><code>devkit services --list</code><span>Ver versiones por defecto de servicios</span></div>
               <div class="cmd"><code>devkit services --set --mysql=8.0</code><span>Fijar version por defecto de MySQL</span></div>
-              <div class="cmd"><code>devkit services --set --postgres=15 --redis=7</code><span>Fijar versiones por defecto de DB/cache</span></div>
-              <div class="cmd"><code>devkit services --set --mailpit=latest</code><span>Fijar version por defecto de Mailpit</span></div>
-            </div>
-          </section>
-
-          <section>
-            <h2>Runtimes con versiones</h2>
-            <div class="cmd-grid">
-              <div class="cmd"><code>devkit start --php=8.3</code><span>Contenedor PHP 8.3</span></div>
-              <div class="cmd"><code>devkit start --node=20</code><span>Contenedor Node.js 20</span></div>
-              <div class="cmd"><code>devkit start --python=3.12</code><span>Contenedor Python 3.12</span></div>
-              <div class="cmd"><code>devkit stop --php</code><span>Detener contenedor PHP</span></div>
-              <div class="cmd"><code>devkit stop --node</code><span>Detener contenedor Node.js</span></div>
-              <div class="cmd"><code>devkit stop --python</code><span>Detener contenedor Python</span></div>
-              <div class="cmd"><code>devkit services --set --php=8.2</code><span>Cambiar version PHP por defecto</span></div>
-              <div class="cmd"><code>devkit services --set --node=20</code><span>Cambiar version Node.js por defecto</span></div>
-              <div class="cmd"><code>devkit services --set --python=3.12</code><span>Cambiar version Python por defecto</span></div>
-              <div class="cmd"><code>devkit services --set --go=1.22</code><span>Cambiar version Go por defecto</span></div>
+              <div class="cmd"><code>devkit services --set --postgres=15 --redis=7</code><span>Fijar versiones de DB y cache</span></div>
             </div>
           </section>
 
           <section>
             <h2>Ejemplos de uso</h2>
             <div class="cmd-grid">
-              <div class="cmd"><code>devkit start --mysql=5.7 --php=7.4</code><span>Laravel legacy</span></div>
-              <div class="cmd"><code>devkit start --postgres=16 --node=20</code><span>API moderna Node.js</span></div>
+              <div class="cmd"><code>devkit start --mysql=5.7 --php=7.4</code><span>Laravel legacy — todo en contenedor</span></div>
+              <div class="cmd"><code>devkit start --postgres=16 --node=20</code><span>API Node.js con PostgreSQL</span></div>
               <div class="cmd"><code>devkit start --mysql=8.0 --php=8.3 --mailpit</code><span>Full stack PHP</span></div>
               <div class="cmd"><code>devkit start --python=3.12 --postgres=15</code><span>Aplicacion Python</span></div>
             </div>

@@ -11,6 +11,7 @@ import {
   isResolverConfigured,
   installHint,
 } from '../core/detect.js'
+import { isWrapper, getWrapperImage } from '../core/wrappers.js'
 
 export async function doctor() {
   const os = detectOS()
@@ -28,7 +29,6 @@ export async function doctor() {
     { name: 'mkcert',  required: true,  label: 'mkcert          (SSL)' },
     { name: 'caddy',   required: true,  label: 'caddy           (proxy)' },
     { name: 'docker',  required: true,  label: 'docker          (contenedores)' },
-    { name: 'node',    required: true,  label: 'node            (runtime)' },
   ]
 
   for (const dep of bins) {
@@ -61,23 +61,27 @@ export async function doctor() {
   console.log('')
   console.log(chalk.dim('  Runtimes\n'))
 
-  // php
-  const phpFound = hasBin('php')
-  if (phpFound) {
-    const phpVer = getBinVersion('php') ?? ''
-    console.log(`  ${chalk.green('✔')} php${phpVer ? chalk.dim(`             ${phpVer}`) : ''}`)
-  } else {
-    console.log(`  ${chalk.dim('–')} php             ${chalk.dim('(no instalado)')}`)
-  }
+  const runtimeBins = [
+    { cmd: 'node',     label: 'node    ' },
+    { cmd: 'npm',      label: 'npm     ' },
+    { cmd: 'php',      label: 'php     ' },
+    { cmd: 'composer', label: 'composer' },
+    { cmd: 'python',   label: 'python  ' },
+  ]
 
-  // composer
-  const composerFound = hasBin('composer')
-  if (composerFound) {
-    const composerVer = getBinVersion('composer') ?? ''
-    console.log(`  ${chalk.green('✔')} composer${composerVer ? chalk.dim(`        ${composerVer}`) : ''}`)
-  } else {
-    console.log(`  ${chalk.dim('–')} composer        ${chalk.dim('(no instalado)')}`)
-    console.log(`    ${chalk.dim('→')} ${chalk.yellow(installHint('composer', os))}`)
+  for (const { cmd, label } of runtimeBins) {
+    const found = hasBin(cmd)
+    const wrapped = !found && isWrapper(cmd)
+
+    if (found) {
+      const ver = getBinVersion(cmd) ?? ''
+      console.log(`  ${chalk.green('✔')} ${label}  ${chalk.dim(ver)}`)
+    } else if (wrapped) {
+      const image = getWrapperImage(cmd) ?? 'Docker'
+      console.log(`  ${chalk.green('✔')} ${label}  ${chalk.cyan('via Docker')} ${chalk.dim(`(${image})`)}`)
+    } else {
+      console.log(`  ${chalk.dim('–')} ${label}  ${chalk.dim('(no instalado — ejecuta devkit setup)')}`)
+    }
   }
 
   // ─── Servicios (Docker) ─────────────────────────────────────────────────

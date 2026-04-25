@@ -158,20 +158,26 @@ export async function setup(opts) {
   console.log('')
   await setupDns(osType, pm)
 
-// ─── 4. Instalar globalmente el paquete ─────────────────────────────────
+  // ─── 4. Wrappers de runtime vía Docker ───────────────────────────────────
   console.log('')
-  console.log(chalk.blue('  Enlazando devkit globalmente (npm link)...'))
-  console.log(chalk.dim('  Esto puede requerir permisos de administrador si npm está en /usr/local'))
-  
+  console.log(chalk.blue('  Configurando runtimes vía Docker...'))
+  console.log(chalk.dim('  node, npm, npx, php, composer, python, pip → se ejecutan en contenedores'))
+
   try {
-    // Si estamos en un shell elevado en windows, 'npm link' funcionará bien.
-    await execa('npm', ['link'], { stdio: 'inherit' })
-    console.log(`  ${chalk.green('✔')} CLI "devkit" enlazado globalmente.`)
+    const { writeWrappers, ensurePathInShell } = await import('../core/wrappers.js')
+    const created = writeWrappers()
+    console.log(`  ${chalk.green('✔')} Wrappers creados: ${chalk.dim(created.join(', '))}`)
+
+    const updatedRc = ensurePathInShell()
+    if (updatedRc) {
+      const rcShort = updatedRc.replace(os.homedir(), '~')
+      console.log(`  ${chalk.green('✔')} PATH actualizado en ${chalk.dim(rcShort)}`)
+      console.log(chalk.yellow(`\n  ⚠  Recarga tu terminal:  source ${rcShort}`))
+    } else {
+      console.log(`  ${chalk.green('✔')} PATH ya configurado`)
+    }
   } catch (e) {
-    console.log(`  ${chalk.red('✗')} Error al enlazar devkit globalmente.`)
-    console.log(chalk.yellow('      Intenta ejecutar manualmente en esta carpeta:'))
-    console.log(chalk.cyan('      sudo npm link'))
-    console.log(chalk.dim('      (o configura npm para no necesitar sudo)'))
+    console.log(`  ${chalk.red('✗')} Error creando wrappers: ${e.message}`)
   }
 
   // ─── 5. Resultado ────────────────────────────────────────────────────────

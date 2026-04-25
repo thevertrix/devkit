@@ -4,9 +4,8 @@ import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { execa } from 'execa'
 import chalk from 'chalk'
-import ora from 'ora'
 import { detectFramework, getFrameworkDefaultPort, hasBin } from '../core/detect.js'
-import { writeBaseCompose, startServices, getDefaultPorts } from '../core/docker.js'
+import { writeBaseCompose, startServices } from '../core/docker.js'
 import { registerProject, reloadProxy } from '../core/proxy.js'
 import { addHostEntry } from '../core/dns.js'
 import { getServiceVersions, getRuntimeVersions, saveProjectServices, saveProjectRuntimes } from '../core/config.js'
@@ -89,11 +88,14 @@ export async function start(options = {}) {
   // 3. Levantar servicios Docker
   const hasDockerCompose = existsSync(join(cwd, 'docker-compose.yml'))
   const needsDocker = hasDockerCompose || mysqlConfig || postgresConfig || redisConfig || mailpitConfig || phpConfig || nodeConfig || pythonConfig
+  // Los runtime containers (--node, --php, --python) embeben el puerto en el comando del contenedor,
+  // así que siempre hay que regenerar docker-compose.yml cuando cambia el puerto asignado.
+  const runtimeContainer = !!(nodeConfig || phpConfig || pythonConfig)
 
   if (needsDocker) {
-    if (!hasDockerCompose) {
+    if (!hasDockerCompose || runtimeContainer) {
       console.log(chalk.blue(`Generando docker-compose.yml...`))
-      
+
       // Mostrar versiones que se van a usar
       const serviceVersions = []
       if (mysqlConfig) serviceVersions.push(`MySQL ${mysqlConfig.version}`)
@@ -103,11 +105,11 @@ export async function start(options = {}) {
       if (phpConfig) serviceVersions.push(`PHP ${phpConfig.version}`)
       if (nodeConfig) serviceVersions.push(`Node.js ${nodeConfig.version}`)
       if (pythonConfig) serviceVersions.push(`Python ${pythonConfig.version}`)
-      
+
       if (serviceVersions.length) {
         console.log(chalk.dim(`  Versiones: ${serviceVersions.join(', ')}`))
       }
-      
+
       writeBaseCompose(cwd, {
         projectName,
         mysql: mysqlConfig,
@@ -117,6 +119,9 @@ export async function start(options = {}) {
         php: phpConfig,
         node: nodeConfig,
         python: pythonConfig,
+        appPort: port,
+        nodeCommand: buildNodeContainerCmd(framework, port),
+        phpCommand: buildPhpContainerCmd(framework, port),
       })
       
       // Guardar configuración de servicios en el proyecto
@@ -164,6 +169,34 @@ export async function start(options = {}) {
   }
 
   // 6. Iniciar el servidor de desarrollo
+  // Si hay un runtime de contenedor activo (--node o --php), el contenedor ES el servidor.
+  // Solo hacemos stream de sus logs y no arrancamos nada en el host.
+  const runtimeService = nodeConfig ? 'node' : (phpConfig ? 'php' : null)
+
+  if (runtimeService) {
+    console.log(chalk.green(`\n✓ Servidor corriendo en contenedor Docker (${runtimeService})\n`))
+    console.log(chalk.dim(`  Ctrl+C para detener`))
+    try {
+      await execa('docker', ['compose', 'logs', '-f', runtimeService], { cwd, stdio: 'inherit' })
+    } catch (e) {
+      const stopped = e.isTerminated || e.signal === 'SIGINT' || e.signal === 'SIGTERM'
+      if (stopped) {
+        console.log(chalk.gray(`\nServidor de desarrollo detenido.`))
+      } else {
+        console.log(chalk.red(`\nError al obtener logs del contenedor:`))
+        console.log(chalk.dim(e.shortMessage || e.message))
+      }
+    }
+    return
+  }
+
+  if (pythonConfig) {
+    console.log(chalk.yellow(`\n⚠ Contenedor Python listo en puerto ${port}.`))
+    console.log(chalk.dim(`  Configura el comando de inicio en: docker-compose.yml`))
+    console.log(chalk.dim(`  Ejemplo: command: python manage.py runserver 0.0.0.0:${port}`))
+    return
+  }
+
   console.log(chalk.magenta(`\n▶ Levantando servidor de desarrollo...`))
 
   try {
@@ -409,6 +442,18 @@ function configureLaravelEnv(cwd, projectName, options) {
     env = setEnvVar(env, 'CACHE_STORE', 'redis')
     env = setEnvVar(env, 'SESSION_DRIVER', 'redis')
     changed = true
+  } else {
+    // Sin --redis, asegurar que session/cache no intenten usar Redis (causaría crash sin extensión)
+    const sessionMatch = env.match(/^SESSION_DRIVER=(.+)$/m)
+    const cacheMatch = env.match(/^CACHE_STORE=(.+)$/m)
+    if (sessionMatch?.[1]?.trim() === 'redis') {
+      env = setEnvVar(env, 'SESSION_DRIVER', 'file')
+      changed = true
+    }
+    if (cacheMatch?.[1]?.trim() === 'redis') {
+      env = setEnvVar(env, 'CACHE_STORE', 'file')
+      changed = true
+    }
   }
 
   // Mailpit
@@ -433,6 +478,13 @@ function configureLaravelEnv(cwd, projectName, options) {
     console.log(chalk.green(`✓ .env actualizado: APP_URL=${expectedUrl}`))
     if (services.length) {
       console.log(chalk.green(`✓ .env configurado para: ${services.join(', ')}`))
+    }
+    if (!options.redis) {
+      const sessionNow = env.match(/^SESSION_DRIVER=(.+)$/m)?.[1]?.trim()
+      const cacheNow = env.match(/^CACHE_STORE=(.+)$/m)?.[1]?.trim()
+      if (sessionNow === 'file' || cacheNow === 'file') {
+        console.log(chalk.yellow(`⚠ SESSION_DRIVER/CACHE_STORE cambiados a "file" (usa --redis para Redis)`))
+      }
     }
   }
 }
@@ -459,6 +511,21 @@ function setEnvVar(env, key, value) {
   // Agregar al final
   env += `\n${key}=${value}`
   return env
+}
+
+function buildNodeContainerCmd(framework, port) {
+  switch (framework) {
+    case 'nextjs':  return `sh -c "npm install && npm run dev -- -p ${port}"`
+    case 'nestjs':  return `sh -c "npm install && PORT=${port} npm run start:dev"`
+    default:        return `sh -c "npm install && npm run dev -- --port ${port} --host"`
+  }
+}
+
+function buildPhpContainerCmd(framework, port) {
+  if (framework === 'laravel') {
+    return `sh -c "composer install && php artisan serve --host=0.0.0.0 --port=${port}"`
+  }
+  return `php -S 0.0.0.0:${port} -t public`
 }
 
 /**

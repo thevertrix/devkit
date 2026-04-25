@@ -86,12 +86,10 @@ export function updateDashboard() {
     projectsHtml = `<ul class="projects-list">\n      ${items}\n    </ul>`
   }
 
-  // Leer versión del package.json
-  let version = '0.0.0'
-  try {
-    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'))
-    version = pkg.version
-  } catch { /* ignore */ }
+  /* global __PKG_VERSION__ */
+  const version = typeof __PKG_VERSION__ !== 'undefined'
+    ? __PKG_VERSION__
+    : (() => { try { return JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')).version } catch { return '0.0.0' } })()
 
   let html = readFileSync(TEMPLATE_PATH, 'utf8')
   html = html.replace('{{PROJECTS_LIST}}', projectsHtml)

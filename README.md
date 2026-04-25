@@ -1,343 +1,278 @@
-# DevKit
+# devkit
 
-Local dev environment manager — SSL, custom domains, versioned services & runtimes
+Local dev environment manager — SSL automático, dominios `.test`, servicios Docker y runtimes sin instalar nada localmente.
 
-## Características
+## Cómo funciona
 
-- 🔒 SSL automático para dominios `.test`
-- 🌐 Dominios personalizados locales
-- 📧 Servidor de correo de prueba (Mailpit)
-- 🐳 Gestión de servicios Docker (MySQL, PostgreSQL, Redis)
-- 🔧 Runtimes con versiones (PHP, Node.js, Python)
-- 📦 Soporte para múltiples frameworks
-- 🎯 Versiones personalizables de servicios y runtimes
+devkit es un **binario standalone** — no requiere Node.js, PHP, Python ni Composer en el host. Todo lo que tu proyecto necesita corre en contenedores Docker. devkit se encarga del proxy (Caddy), los certificados SSL (mkcert) y los dominios `.test`.
+
+```
+devkit new mi-app --laravel
+→  dominio:    https://mi-app.test  (SSL automático)
+→  PHP:        contenedor php:8.3-cli
+→  MySQL:      contenedor mysql:8.0
+→  Mail:       contenedor mailpit
+→  host:       sin instalar nada
+```
 
 ## Instalación
 
+### macOS (Apple Silicon)
 ```bash
-npm install -g devkit
+curl -fsSL https://github.com/thevertrix/devkit/releases/latest/download/devkit-macos-arm64 -o devkit
+chmod +x devkit && sudo mv devkit /usr/local/bin/devkit
+devkit setup
+source ~/.zshrc
 ```
+
+### macOS (Intel)
+```bash
+curl -fsSL https://github.com/thevertrix/devkit/releases/latest/download/devkit-macos-x64 -o devkit
+chmod +x devkit && sudo mv devkit /usr/local/bin/devkit
+devkit setup
+source ~/.zshrc
+```
+
+### Linux
+```bash
+curl -fsSL https://github.com/thevertrix/devkit/releases/latest/download/devkit-linux-x64 -o devkit
+chmod +x devkit && sudo mv devkit /usr/local/bin/devkit
+devkit setup
+source ~/.bashrc
+```
+
+### Windows
+Descarga `devkit-win-x64.exe` desde [Releases](https://github.com/thevertrix/devkit/releases), renómbralo a `devkit.exe` y agrégalo a tu `PATH`.
+
+> **Requisito único:** [Docker Desktop](https://www.docker.com/products/docker-desktop) instalado y corriendo.
+
+---
+
+## `devkit setup`
+
+Configura todo el entorno en un solo comando:
+
+- Instala **mkcert** (SSL) y **Caddy** (proxy)
+- Configura DNS para dominios `*.test`
+- Crea **wrappers de runtime** en `~/.devkit/bin/` — después del setup, `node`, `npm`, `npx`, `php`, `composer`, `python` y `pip` ejecutan en contenedores Docker sin que los tengas instalados localmente
+
+```bash
+devkit setup
+source ~/.zshrc   # recargar PATH
+
+# Verificar
+node -v       # → corre en Docker (node:20-alpine)
+php -v        # → corre en Docker (php:8.3-cli)
+python --version  # → corre en Docker (python:3.12-slim)
+```
+
+Para cambiar las versiones de los wrappers:
+```bash
+devkit services --set --node=22 --php=8.4
+devkit setup   # regenera los wrappers con las versiones nuevas
+source ~/.zshrc
+```
+
+---
+
+## Inicio rápido
+
+```bash
+# Crear un proyecto Laravel
+devkit new mi-app --laravel
+cd ~/devkit-projects/mi-app
+
+# Levantar con MySQL y Mailpit
+devkit start --mysql --mailpit
+
+# Abrir en el navegador
+open https://mi-app.test
+```
+
+---
 
 ## Comandos
 
-### `devkit doctor`
-
-Verifica que todas las dependencias estén instaladas correctamente.
-
-```bash
-devkit doctor
-```
-
-### `devkit setup`
-
-Instala y configura todas las dependencias automáticamente.
-
-```bash
-devkit setup
-devkit setup --php  # Incluir PHP en la instalación
-```
-
 ### `devkit new <nombre>`
 
-Crea un nuevo proyecto con dominio `.test` y SSL.
+Crea un nuevo proyecto con dominio `.test` y certificado SSL.
 
 ```bash
-devkit new mi-proyecto
-devkit new mi-app --next        # Proyecto Next.js
-devkit new mi-api --nestjs      # Proyecto NestJS
-devkit new mi-sitio --laravel   # Proyecto Laravel
+devkit new mi-app --laravel    # Laravel
+devkit new mi-app --php        # PHP básico
+devkit new mi-app --next       # Next.js
+devkit new mi-app --nuxt       # Nuxt
+devkit new mi-app --angular    # Angular
+devkit new mi-app --nestjs     # NestJS
+devkit new mi-app --astro      # Astro
+devkit new mi-app --svelte     # SvelteKit
 ```
 
-**Opciones:**
-- `-p, --port <puerto>` - Puerto local del servidor (default: 3000)
-- `--php` - Crear un esqueleto básico de PHP
-- `--laravel` - Crear un proyecto de Laravel (requiere composer)
-- `--next` - Crear un proyecto de Next.js
-- `--nuxt` - Crear un proyecto de Nuxt.js
-- `--angular` - Crear un proyecto de Angular
-- `--nestjs` - Crear un proyecto de NestJS
-- `--astro` - Crear un proyecto de Astro
-- `--svelte` - Crear un proyecto de SvelteKit
+Los proyectos se crean en `~/devkit-projects/<nombre>` con dominio `https://<nombre>.test`.
+
+---
 
 ### `devkit start`
 
-Levanta el proyecto y los servicios en Docker si los requiere.
+Levanta el proyecto. Detecta el framework automáticamente y asigna un puerto libre.
 
 ```bash
-# Sin servicios adicionales
-devkit start
-
-# Con servicios específicos usando versiones por defecto
-devkit start --mysql --redis
-
-# Especificando versiones personalizadas de servicios
-devkit start --mysql=8.0 --postgres=15 --redis=7
-
-# Con runtimes en contenedores
-devkit start --php=8.3 --node=20
-
-# Combinando servicios y runtimes
-devkit start --mysql=8.0 --php=8.3 --node=20 --mailpit
+devkit start                          # solo proxy + dev server
+devkit start --mysql                  # + MySQL con versión por defecto
+devkit start --mysql=8.0              # + MySQL 8.0 específico
+devkit start --postgres=16 --redis=7  # + PostgreSQL 16 + Redis 7
+devkit start --mailpit                # + Mailpit (correo de prueba)
 ```
 
-**Opciones de Servicios:**
-- `--mysql [version]` - Agrega MySQL (ej: `--mysql=8.0`, `--mysql=5.7`)
-- `--postgres [version]` - Agrega PostgreSQL (ej: `--postgres=16`, `--postgres=15`)
-- `--redis [version]` - Agrega Redis (ej: `--redis=7`, `--redis=6`)
-- `--mailpit [version]` - Agrega Mailpit (ej: `--mailpit=latest`, `--mailpit`)
+**Runtimes containerizados** — el servidor dev corre en el contenedor, no en el host:
 
-**Opciones de Runtimes:**
-- `--php [version]` - Agrega PHP en contenedor (ej: `--php=8.3`, `--php=7.4`)
-- `--node [version]` - Agrega Node.js en contenedor (ej: `--node=20`, `--node=18`)
-- `--python [version]` - Agrega Python en contenedor (ej: `--python=3.12`, `--python=3.11`)
-- `--postgres [version]` - Agrega PostgreSQL (ej: `--postgres=16`, `--postgres=15`)
-- `--redis [version]` - Agrega Redis (ej: `--redis=7`, `--redis=6`)
-- `--mailpit [version]` - Agrega Mailpit (ej: `--mailpit=latest`, `--mailpit`)
+```bash
+devkit start --node=20       # dev server en contenedor Node 20
+devkit start --php=8.3       # dev server en contenedor PHP 8.3
+devkit start --php=7.4       # proyecto legacy con PHP 7.4
+devkit start --python=3.12   # contenedor Python listo en el puerto del proyecto
+```
 
-**Opciones de Runtimes:**
-- `--php [version]` - Agrega PHP en contenedor (ej: `--php=8.3`, `--php=7.4`)
-- `--node [version]` - Agrega Node.js en contenedor (ej: `--node=20`, `--node=18`)
-- `--python [version]` - Agrega Python en contenedor (ej: `--python=3.12`, `--python=3.11`)
+Combinaciones:
+```bash
+devkit start --mysql=5.7 --php=7.4            # Laravel legacy
+devkit start --postgres=16 --node=20          # API Node.js moderna
+devkit start --mysql=8.0 --php=8.3 --mailpit  # Full stack PHP
+devkit start --python=3.12 --postgres=15      # Aplicación Python
+```
 
-**Versiones disponibles:**
+> Si el puerto por defecto está ocupado por otro proyecto, devkit asigna uno libre automáticamente.
 
-*Servicios:*
-- **MySQL**: `8.0`, `8.4`, `5.7`, etc.
-- **PostgreSQL**: `16`, `15`, `14`, `13`, etc.
-- **Redis**: `7`, `6`, `5`, etc.
-- **Mailpit**: `latest` o versión específica
-
-*Runtimes:*
-- **PHP**: `8.3`, `8.2`, `8.1`, `7.4`, etc.
-- **Node.js**: `20`, `18`, `16`, `14`, etc.
-- **Python**: `3.12`, `3.11`, `3.10`, `3.9`, etc.
+---
 
 ### `devkit stop`
 
-Detiene servicios. Sin flags detiene todo el entorno.
-
 ```bash
-# Detener todos los servicios
-devkit stop
-
-# Detener servicios específicos
-devkit stop --mysql
-devkit stop --postgres --redis
+devkit stop                     # detener todo el entorno
+devkit stop --mysql             # detener solo MySQL
+devkit stop --mysql --redis     # detener servicios específicos
+devkit stop --php               # detener contenedor PHP
+devkit stop --node --python     # detener runtimes específicos
 ```
 
-**Opciones:**
-- `--mysql` - Detener solo MySQL
-- `--postgres` - Detener solo PostgreSQL
-- `--redis` - Detener solo Redis
-- `--mailpit` - Detener solo Mailpit
-
-### `devkit list`
-
-Lista todos los proyectos configurados.
-
-```bash
-devkit list
-```
-
-### `devkit mail`
-
-Abre Mailpit en el navegador para ver los correos de prueba.
-
-```bash
-devkit mail
-```
+---
 
 ### `devkit services`
 
-Gestiona las versiones por defecto de los servicios y runtimes.
+Gestiona las versiones por defecto de servicios y runtimes.
 
 ```bash
-# Ver versiones por defecto actuales
-devkit services --list
-
-# Configurar versiones de forma interactiva
-devkit services --set
-
-# Configurar versiones específicas de servicios
-devkit services --set --mysql=8.0 --postgres=16
-
-# Configurar versiones específicas de runtimes
-devkit services --set --php=8.3 --node=20 --python=3.12
+devkit services --list                          # ver versiones actuales
+devkit services --set --mysql=8.0              # fijar versión de MySQL
+devkit services --set --postgres=15 --redis=7  # fijar DB y cache
+devkit services --set --php=8.2 --node=22      # fijar runtimes
+devkit services --set --python=3.12 --go=1.22  # fijar Python y Go
 ```
 
-**Opciones de Servicios:**
-- `--mysql <version>` - Establece la versión por defecto de MySQL
-- `--postgres <version>` - Establece la versión por defecto de PostgreSQL
-- `--redis <version>` - Establece la versión por defecto de Redis
-- `--mailpit <version>` - Establece la versión por defecto de Mailpit
+---
 
-**Opciones de Runtimes:**
-- `--php <version>` - Establece la versión por defecto de PHP
-- `--node <version>` - Establece la versión por defecto de Node.js
-- `--python <version>` - Establece la versión por defecto de Python
-- `--go <version>` - Establece la versión por defecto de Go
+### `devkit doctor`
 
-## Gestión de Versiones
-
-DevKit permite gestionar versiones de servicios y runtimes de tres formas:
-
-### 1. Versiones por Defecto Globales
-
-Configura las versiones que se usarán cuando no especifiques una versión:
+Verifica el estado del entorno. Muestra si los runtimes son locales o via Docker.
 
 ```bash
-# Ver versiones actuales (servicios y runtimes)
-devkit services --list
-
-# Configurar interactivamente
-devkit services --set
-
-# Configurar directamente servicios
-devkit services --set --mysql=8.0 --postgres=16 --redis=7
-
-# Configurar directamente runtimes
-devkit services --set --php=8.3 --node=20 --python=3.12
+devkit doctor
 ```
 
-### 2. Versiones Específicas por Proyecto
+Ejemplo de salida:
+```
+  Binarios
+  ✔ mkcert    v1.4.4
+  ✔ caddy     v2.x.x
+  ✔ docker    Docker Desktop
 
-Al ejecutar `devkit start`, especifica la versión que necesita tu proyecto:
+  Runtimes
+  ✔ node      via Docker  (node:20-alpine)
+  ✔ npm       via Docker  (node:20-alpine)
+  ✔ php       via Docker  (php:8.3-cli)
+  ✔ composer  via Docker  (composer:latest)
+  ✔ python    via Docker  (python:3.12-slim)
+```
+
+---
+
+### `devkit list`
+
+Lista todos los proyectos registrados con su URL y estado.
+
+### `devkit mail`
+
+Abre la interfaz de Mailpit en el navegador para revisar correos de prueba.
+
+---
+
+## Runtimes via Docker (sin instalar nada)
+
+Después de `devkit setup`, los comandos de runtime en tu terminal funcionan transparentemente via Docker:
+
+| Comando | Imagen Docker |
+|---------|--------------|
+| `node` | `node:20-alpine` |
+| `npm` | `node:20-alpine` |
+| `npx` | `node:20-alpine` |
+| `php` | `php:8.3-cli` |
+| `composer` | `composer:latest` |
+| `python` | `python:3.12-slim` |
+| `pip` | `python:3.12-slim` |
+
+Los wrappers montan el directorio actual (`$(pwd)`) dentro del contenedor, por lo que los archivos creados aparecen en el host normalmente.
+
+Para actualizar versiones:
+```bash
+devkit services --set --node=22
+devkit setup        # regenera los wrappers
+source ~/.zshrc
+node -v             # → v22.x.x
+```
+
+---
+
+## Compilar desde código fuente
+
+Requiere Node.js y Docker para el build:
 
 ```bash
-# Proyecto con MySQL 5.7, PHP 7.4 y Redis 6 (legacy)
-devkit start --mysql=5.7 --php=7.4 --redis=6
-
-# Proyecto moderno con PostgreSQL 16 y Node.js 20
-devkit start --postgres=16 --node=20
-
-# Proyecto Python con PostgreSQL
-devkit start --python=3.12 --postgres=15
+git clone https://github.com/thevertrix/devkit
+cd devkit
+npm install
+npm run build
+# Binarios en dist/
 ```
 
-Las versiones se guardan en la configuración del proyecto y se usan automáticamente en futuros `start`.
+---
 
-### 3. Versiones en docker-compose.yml
+## Solución de problemas
 
-Si ya tienes un `docker-compose.yml` en tu proyecto, devkit lo respetará y no generará uno nuevo. Puedes especificar las versiones directamente en ese archivo.
-
-## Ejemplos de Uso
-
-### Proyecto Laravel Legacy con PHP 7.4
-
+**El dominio `.test` no resuelve**
 ```bash
-devkit new mi-laravel --laravel
-cd mi-laravel
-devkit start --mysql=5.7 --php=7.4 --mailpit
+devkit doctor        # identificar el problema
+devkit setup         # reconfigurar DNS y proxy
 ```
 
-### Proyecto Laravel Moderno con PHP 8.3
+**502 en un proyecto con --node o --php**
+Borra el `docker-compose.yml` del proyecto y vuelve a correr `devkit start --node=20`. El archivo anterior no tenía los puertos configurados correctamente.
 
+**Puerto ocupado**
+devkit asigna automáticamente el siguiente puerto disponible. Si ves `(5173 ocupado → usando 5174)`, es el comportamiento esperado.
+
+**Cambiar versión de servicio en proyecto existente**
 ```bash
-devkit new mi-laravel --laravel
-cd mi-laravel
-devkit start --mysql=8.0 --php=8.3 --redis=7 --mailpit
+devkit stop
+rm docker-compose.yml
+devkit start --mysql=8.0   # regenera con la nueva versión
 ```
 
-### Proyecto Next.js con PostgreSQL
-
-```bash
-devkit new mi-nextjs --next
-cd mi-nextjs
-devkit start --postgres=15 --node=20 --redis=7
-```
-
-### API Python con FastAPI
-
-```bash
-devkit new mi-api-python
-cd mi-api-python
-devkit start --python=3.12 --postgres=16 --redis=7
-```
-
-### Proyecto Laravel con MySQL 8.0
-
-```bash
-devkit new mi-laravel --laravel
-cd mi-laravel
-devkit start --mysql=8.0 --php=8.3 --mailpit
-```
-
-### Proyecto Next.js con PostgreSQL y Node.js 20
-
-```bash
-devkit new mi-nextjs --next
-cd mi-nextjs
-devkit start --postgres=15 --node=20 --redis=7
-```
-
-### API NestJS con servicios completos
-
-```bash
-devkit new mi-api --nestjs
-cd mi-api
-devkit start --mysql=8.0 --postgres=16 --node=20 --redis=7 --mailpit
-```
-
-## Configuración
-
-DevKit almacena la configuración en `~/.config/devkit/`. Incluye:
-
-- Proyectos registrados
-- Versiones por defecto de servicios (MySQL, PostgreSQL, Redis, Mailpit)
-- Versiones por defecto de runtimes (PHP, Node.js, Python, Go)
-- Configuración de Caddy (proxy)
-- Puertos de servicios
+---
 
 ## Requisitos
 
-- Node.js 18+
-- Docker Desktop
-- Caddy (se instala con `devkit setup`)
-- Composer (opcional, para proyectos Laravel)
-
-## Soporte de Frameworks
-
-DevKit detecta automáticamente y configura:
-
-- Laravel
-- Next.js
-- Nuxt.js
-- Angular
-- NestJS
-- Astro
-- SvelteKit
-- Proyectos PHP básicos
-
-## Solución de Problemas
-
-### Los servicios no se levantan
-
-```bash
-# Verifica que Docker esté corriendo
-docker ps
-
-# Revisa los logs de Docker Compose
-cd tu-proyecto
-docker compose logs
-```
-
-### El dominio .test no funciona
-
-```bash
-# Verifica la configuración
-devkit doctor
-
-# Reconfigura el sistema
-devkit setup
-```
-
-### Cambiar versión de un servicio existente
-
-1. Detén los servicios: `devkit stop`
-2. Edita `docker-compose.yml` y cambia la versión en la imagen
-3. Levanta de nuevo: `docker compose up -d`
-
-O elimina `docker-compose.yml` y vuelve a ejecutar `devkit start` con la versión deseada.
+- **Docker Desktop** — único requisito obligatorio
+- macOS 12+, Linux, o Windows (WSL2 recomendado)
 
 ## Licencia
 

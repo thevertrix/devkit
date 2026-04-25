@@ -44,6 +44,9 @@ export function writeBaseCompose(destDir, options) {
     node = false,
     python = false,
     projectName = 'devkit-project',
+    appPort = 8000,
+    nodeCommand = null,
+    phpCommand = null,
   } = options
 
   const ports = getDefaultPorts()
@@ -54,11 +57,14 @@ export function writeBaseCompose(destDir, options) {
   const postgresVersion = (typeof postgres === 'object' ? postgres.version : '16') || '16'
   const redisVersion = (typeof redis === 'object' ? redis.version : '7') || '7'
   const mailpitVersion = (typeof mailpit === 'object' && mailpit.version) ? mailpit.version : 'latest'
-  
+
   // Extraer versiones de los runtimes
   const phpVersion = (typeof php === 'object' ? php.version : '8.3') || '8.3'
   const nodeVersion = (typeof node === 'object' ? node.version : '20') || '20'
   const pythonVersion = (typeof python === 'object' ? python.version : '3.12') || '3.12'
+
+  const resolvedNodeCommand = nodeCommand || `sh -c "npm install && npm run dev -- --port ${appPort} --host"`
+  const resolvedPhpCommand = phpCommand || `php -S 0.0.0.0:${appPort} -t public`
 
   // Reemplazar placeholders simples
   const dbName = projectName.replace(/[^a-zA-Z0-9_]/g, '_')
@@ -80,6 +86,9 @@ export function writeBaseCompose(destDir, options) {
     '{{PHP_VERSION}}': phpVersion,
     '{{NODE_VERSION}}': nodeVersion,
     '{{PYTHON_VERSION}}': pythonVersion,
+    '{{APP_PORT}}': String(appPort),
+    '{{NODE_COMMAND}}': resolvedNodeCommand,
+    '{{PHP_COMMAND}}': resolvedPhpCommand,
   }
 
   for (const [placeholder, value] of Object.entries(replacements)) {
