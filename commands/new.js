@@ -29,21 +29,54 @@ export async function newProject(name, opts) {
     console.log(chalk.blue(`ℹ Creado directorio central de proyectos en: ${projectsBaseDir}`))
   }
 
-  const targetDir = join(projectsBaseDir, name)
+  // Los frameworks npm requieren nombres en minúsculas — siempre usar slug como directorio
+  const targetDir = join(projectsBaseDir, slug)
   const projectSlug = slug
 
   console.log(chalk.cyan(`\n✨ Creando nuevo proyecto: ${chalk.bold(name)}\n`))
 
   if (existsSync(targetDir)) {
-    console.log(chalk.red(`⚠ El directorio "${name}" ya existe en ${projectsBaseDir}. Abortando.`))
+    console.log(chalk.red(`⚠ El directorio "${slug}" ya existe en ${projectsBaseDir}. Abortando.`))
     return
   }
 
   try {
     if (opts.php) {
       const spinner = ora('Creando estructura base PHP...').start()
-      mkdirSync(targetDir)
-      await execa('git', ['init'], { cwd: targetDir })
+      mkdirSync(join(targetDir, 'public'),  { recursive: true })
+      mkdirSync(join(targetDir, 'src'),     { recursive: true })
+
+      writeFileSync(join(targetDir, 'public', 'index.php'), `<?php
+
+$project = basename(dirname(__DIR__));
+
+?><!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title><?= htmlspecialchars($project) ?></title>
+  <style>body { font-family: sans-serif; padding: 2rem; }</style>
+</head>
+<body>
+  <h1><?= htmlspecialchars($project) ?></h1>
+  <p>PHP <?= PHP_VERSION ?> · devkit local dev</p>
+</body>
+</html>
+`)
+
+      writeFileSync(join(targetDir, 'composer.json'), JSON.stringify({
+        name: `${slug}/${slug}`,
+        type: 'project',
+        require: { php: '>=8.1' },
+        autoload: { 'psr-4': { 'App\\': 'src/' } },
+      }, null, 2) + '\n')
+
+      writeFileSync(join(targetDir, '.env.example'), `APP_NAME=${slug}\nAPP_ENV=local\n`)
+      writeFileSync(join(targetDir, '.env'),          `APP_NAME=${slug}\nAPP_ENV=local\n`)
+
+      writeFileSync(join(targetDir, '.gitignore'), `/vendor\n.env\n`)
+
+      await execa('git', ['init'], { cwd: targetDir, stdio: 'pipe' })
       spinner.succeed(chalk.green('Estructura base PHP creada.'))
     } else if (opts.laravel) {
       await createLaravelProject(name, projectsBaseDir, targetDir)
@@ -55,42 +88,43 @@ export async function newProject(name, opts) {
     } else if (opts.next) {
       console.log(chalk.blue('Generando proyecto Next.js...'))
       console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npx', ['create-next-app@latest', name, '--ts', '--tailwind', '--eslint', '--app', '--src-dir', '--import-alias', '@/*'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      await execa('npx', ['create-next-app@latest', slug, '--ts', '--tailwind', '--eslint', '--app', '--src-dir', '--import-alias', '@/*'], { cwd: projectsBaseDir, stdio: 'inherit' })
       patchNextConfig(targetDir, projectSlug)
       console.log(chalk.green(`✓ Proyecto Next.js creado en ${targetDir}`))
     } else if (opts.nuxt) {
       console.log(chalk.blue('Generando proyecto Nuxt.js...'))
       console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npx', ['nuxi@latest', 'init', name], { cwd: projectsBaseDir, stdio: 'inherit' })
-      patchNuxtConfig(targetDir, projectSlug)
+      await execa('npx', ['nuxi@latest', 'init', slug, '--packageManager', 'npm'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchNuxtConfig(targetDir)
       console.log(chalk.green(`✓ Proyecto Nuxt creado en ${targetDir}`))
     } else if (opts.angular) {
       console.log(chalk.blue('Generando proyecto Angular...'))
       console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npx', ['@angular/cli', 'new', name, '--defaults'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      await execa('npx', ['@angular/cli', 'new', slug, '--defaults'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchAngularConfig(targetDir, projectSlug)
       console.log(chalk.green(`✓ Proyecto Angular creado en ${targetDir}`))
     } else if (opts.nestjs) {
       console.log(chalk.blue('Generando proyecto NestJS...'))
       console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npx', ['@nestjs/cli', 'new', name, '--package-manager', 'npm', '--strict'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      await execa('npx', ['@nestjs/cli', 'new', slug, '--package-manager', 'npm', '--strict'], { cwd: projectsBaseDir, stdio: 'inherit' })
       console.log(chalk.green(`✓ Proyecto NestJS creado en ${targetDir}`))
     } else if (opts.astro) {
       console.log(chalk.blue('Generando proyecto Astro...'))
       console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npm', ['create', 'astro@latest', name, '--', '--install', '--no-git', '--typescript', 'strict'], { cwd: projectsBaseDir, stdio: 'inherit' })
-      patchAstroConfig(targetDir, projectSlug)
+      await execa('npm', ['create', 'astro@latest', slug, '--', '--install', '--no-git', '--typescript', 'strict'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchAstroConfig(targetDir)
       console.log(chalk.green(`✓ Proyecto Astro creado en ${targetDir}`))
     } else if (opts.svelte) {
       console.log(chalk.blue('Generando proyecto SvelteKit...'))
       console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npm', ['create', 'svelte@latest', name], { cwd: projectsBaseDir, stdio: 'inherit' })
-      patchSvelteKitConfig(targetDir, projectSlug)
+      await execa('npx', ['sv', 'create', slug, '--template', 'minimal', '--types', 'ts', '--no-add-ons', '--install', 'npm'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchSvelteKitConfig(targetDir)
       console.log(chalk.green(`✓ Proyecto SvelteKit creado en ${targetDir}`))
     } else {
       console.log(chalk.blue('Generando proyecto Vite (Vanilla TS) por defecto...'))
       console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npm', ['create', 'vite@latest', name, '--', '--template', 'vanilla-ts'], { cwd: projectsBaseDir, stdio: 'inherit' })
-      patchViteConfig(targetDir, projectSlug)
+      await execa('npm', ['create', 'vite@latest', slug, '--', '--template', 'vanilla-ts'], { cwd: projectsBaseDir, stdio: 'inherit' })
+      patchViteConfig(targetDir)
       console.log(chalk.green(`✓ Proyecto Vite creado en ${targetDir}`))
     }
 
@@ -479,7 +513,7 @@ function patchLaravelViteConfig(targetDir) {
       'export default defineConfig({',
       `export default defineConfig({
     server: {
-        allowedHosts: ['*.test', 'localhost'],
+        allowedHosts: ['.test', 'localhost'],
     },`
     )
   } else {
@@ -488,7 +522,7 @@ function patchLaravelViteConfig(targetDir) {
       'export default {',
       `export default {
     server: {
-        allowedHosts: ['*.test', 'localhost'],
+        allowedHosts: ['.test', 'localhost'],
     },`
     )
   }
@@ -498,9 +532,45 @@ function patchLaravelViteConfig(targetDir) {
 }
 
 /**
+ * Configura Angular (angular.json) para permitir dominios .test en ng serve.
+ * Angular no usa Vite — la config vive en angular.json bajo architect.serve.
+ */
+function patchAngularConfig(targetDir, projectSlug) {
+  const configPath = join(targetDir, 'angular.json')
+  if (!existsSync(configPath)) {
+    console.log(chalk.yellow('  ⚠ angular.json no encontrado, saltando configuración'))
+    return
+  }
+
+  const config = JSON.parse(readFileSync(configPath, 'utf8'))
+  const projectName = Object.keys(config.projects ?? {})[0]
+  const serveTarget = config.projects?.[projectName]?.architect?.serve
+
+  if (!serveTarget) {
+    console.log(chalk.yellow('  ⚠ No se encontró architect.serve en angular.json'))
+    return
+  }
+
+  if (!serveTarget.options) serveTarget.options = {}
+
+  const host = `${projectSlug}.test`
+  const current = serveTarget.options.allowedHosts ?? []
+
+  if (current.includes(host)) {
+    console.log(chalk.green('  ✓ angular.json ya configurado para dominios .test'))
+    return
+  }
+
+  serveTarget.options.allowedHosts = [...current, host]
+
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
+  console.log(chalk.green(`  ✓ angular.json configurado para ${host}`))
+}
+
+/**
  * Configura Astro para permitir dominios .test
  */
-function patchAstroConfig(targetDir, projectSlug) {
+function patchAstroConfig(targetDir) {
   const configPath = join(targetDir, 'astro.config.mjs')
   
   if (!existsSync(configPath)) {
@@ -516,8 +586,6 @@ function patchAstroConfig(targetDir, projectSlug) {
     return
   }
 
-  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
-
   // Manejar diferentes formatos de Astro config
   if (config.includes('export default defineConfig({') && config.includes('});')) {
     // Configuración con defineConfig vacía o con contenido
@@ -532,7 +600,7 @@ function patchAstroConfig(targetDir, projectSlug) {
   vite: {
     server: {
       host: true,
-      allowedHosts: ${allowedHosts},
+      allowedHosts: true,
     },
   },`
       } else {
@@ -541,7 +609,7 @@ function patchAstroConfig(targetDir, projectSlug) {
   vite: {
     server: {
       host: true,
-      allowedHosts: ${allowedHosts},
+      allowedHosts: true,
     },
   },
 ${existingContent}`
@@ -561,7 +629,7 @@ ${existingContent}`
   vite: {
     server: {
       host: true,
-      allowedHosts: ${allowedHosts},
+      allowedHosts: true,
     },
   },`
     )
@@ -574,11 +642,13 @@ ${existingContent}`
 /**
  * Configura SvelteKit para permitir dominios .test
  */
-function patchSvelteKitConfig(targetDir, projectSlug) {
-  const viteConfigPath = join(targetDir, 'vite.config.js')
-  
+function patchSvelteKitConfig(targetDir) {
+  const viteConfigPath = existsSync(join(targetDir, 'vite.config.ts'))
+    ? join(targetDir, 'vite.config.ts')
+    : join(targetDir, 'vite.config.js')
+
   if (!existsSync(viteConfigPath)) {
-    console.log(chalk.yellow('  ⚠ vite.config.js no encontrado, saltando configuración'))
+    console.log(chalk.yellow('  ⚠ vite.config.ts/js no encontrado, saltando configuración'))
     return
   }
 
@@ -590,8 +660,6 @@ function patchSvelteKitConfig(targetDir, projectSlug) {
     return
   }
 
-  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
-
   // Añadir configuración de server allowedHosts
   if (config.includes('export default defineConfig({')) {
     config = config.replace(
@@ -599,7 +667,7 @@ function patchSvelteKitConfig(targetDir, projectSlug) {
       `export default defineConfig({
   server: {
     host: true,
-    allowedHosts: ${allowedHosts},
+    allowedHosts: true,
   },`
     )
   } else {
@@ -609,7 +677,7 @@ function patchSvelteKitConfig(targetDir, projectSlug) {
       `export default {
   server: {
     host: true,
-    allowedHosts: ${allowedHosts},
+    allowedHosts: true,
   },`
     )
   }
@@ -621,7 +689,7 @@ function patchSvelteKitConfig(targetDir, projectSlug) {
 /**
  * Configura Nuxt para permitir dominios .test
  */
-function patchNuxtConfig(targetDir, projectSlug) {
+function patchNuxtConfig(targetDir) {
   const configPath = join(targetDir, 'nuxt.config.ts')
   
   if (!existsSync(configPath)) {
@@ -638,8 +706,6 @@ function patchNuxtConfig(targetDir, projectSlug) {
   }
 
   // Añadir configuración de vite server allowedHosts
-  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
-
   if (config.includes('export default defineNuxtConfig({')) {
     config = config.replace(
       'export default defineNuxtConfig({',
@@ -647,7 +713,7 @@ function patchNuxtConfig(targetDir, projectSlug) {
   vite: {
     server: {
       host: true,
-      allowedHosts: ${allowedHosts},
+      allowedHosts: true,
     },
   },`
     )
@@ -659,7 +725,7 @@ function patchNuxtConfig(targetDir, projectSlug) {
   vite: {
     server: {
       host: true,
-      allowedHosts: ${allowedHosts},
+      allowedHosts: true,
     },
   },`
     )
@@ -672,7 +738,7 @@ function patchNuxtConfig(targetDir, projectSlug) {
 /**
  * Configura Vite (vanilla) para permitir dominios .test
  */
-function patchViteConfig(targetDir, projectSlug) {
+function patchViteConfig(targetDir) {
   const configPath = join(targetDir, 'vite.config.ts')
   
   if (!existsSync(configPath)) {
@@ -688,8 +754,6 @@ function patchViteConfig(targetDir, projectSlug) {
     return
   }
 
-  const allowedHosts = `['${projectSlug}.test', '*.test', 'localhost']`
-
   // Añadir configuración de server allowedHosts
   if (config.includes('export default defineConfig({')) {
     config = config.replace(
@@ -697,7 +761,7 @@ function patchViteConfig(targetDir, projectSlug) {
       `export default defineConfig({
   server: {
     host: true,
-    allowedHosts: ${allowedHosts},
+    allowedHosts: true,
   },`
     )
   } else {
@@ -707,7 +771,7 @@ function patchViteConfig(targetDir, projectSlug) {
       `export default {
   server: {
     host: true,
-    allowedHosts: ${allowedHosts},
+    allowedHosts: true,
   },`
     )
   }
@@ -741,7 +805,7 @@ function patchNextConfig(targetDir, projectSlug) {
     return
   }
 
-  const allowedOrigins = `['${projectSlug}.test', '*.test', 'localhost']`
+  const allowedOrigins = `['${projectSlug}.test', '.test', 'localhost']`
 
   if (actualPath.endsWith('.ts')) {
     // Configuración TypeScript

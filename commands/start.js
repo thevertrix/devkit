@@ -1,10 +1,11 @@
+import { createServer } from 'net'
 import { basename } from 'path'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { execa } from 'execa'
 import chalk from 'chalk'
 import ora from 'ora'
-import { detectFramework, getFrameworkDefaultPort } from '../core/detect.js'
+import { detectFramework, getFrameworkDefaultPort, hasBin } from '../core/detect.js'
 import { writeBaseCompose, startServices, getDefaultPorts } from '../core/docker.js'
 import { registerProject, reloadProxy } from '../core/proxy.js'
 import { addHostEntry } from '../core/dns.js'
@@ -52,13 +53,26 @@ export async function start(options = {}) {
 
   // 1. Detectar framework y puerto
   const framework = detectFramework(cwd)
-  let port = 8000
+  const defaultPort = framework ? (getFrameworkDefaultPort(framework) || 8000) : 8000
+  const port = await findAvailablePort(defaultPort)
 
   if (framework) {
-    port = getFrameworkDefaultPort(framework) || 8000
-    console.log(chalk.green(`✓ Framework detectado:`), chalk.bold(framework), chalk.dim(`(Puerto: ${port})`))
+    const portNote = port !== defaultPort
+      ? chalk.yellow(` (${defaultPort} ocupado → usando ${port})`)
+      : chalk.dim(` (Puerto: ${port})`)
+    console.log(chalk.green(`✓ Framework detectado:`), chalk.bold(framework), portNote)
   } else {
     console.log(chalk.yellow(`⚠ No se detectó un framework conocido. Asumiendo puerto ${port}.`))
+  }
+
+  // Parchear configs de frameworks lo antes posible para que el evento de escritura
+  // se consuma antes de que el file watcher de Vite/Angular arranque.
+  if (framework === 'angular') {
+    ensureAngularAllowedHosts(cwd, projectName)
+  } else if (['svelte', 'sveltekit', 'vite', 'astro'].includes(framework)) {
+    ensureViteAllowedHosts(cwd, projectName)
+  } else if (framework === 'nuxtjs') {
+    ensureNuxtAllowedHosts(cwd, projectName)
   }
 
   // 2. Parsear servicios y versiones
@@ -153,7 +167,11 @@ export async function start(options = {}) {
   console.log(chalk.magenta(`\n▶ Levantando servidor de desarrollo...`))
 
   try {
-    if (framework === 'laravel') {
+    if (framework === 'php') {
+      const docroot = existsSync(join(cwd, 'public')) ? 'public' : '.'
+      console.log(chalk.dim(`  Sirviendo desde ./${docroot} en localhost:${port}`))
+      await execa('php', ['-S', `localhost:${port}`, '-t', docroot], { stdio: 'inherit' })
+    } else if (framework === 'laravel') {
       const promises = [
         execa('php', ['artisan', 'serve', `--port=${port}`], { stdio: 'inherit' }),
       ]
@@ -166,21 +184,181 @@ export async function start(options = {}) {
       await Promise.all(promises)
     } else if (existsSync(join(cwd, 'package.json'))) {
       const pm = detectPm(cwd)
-      await execa(pm, ['run', 'dev'], { stdio: 'inherit' })
+      const script = resolveDevScript(framework, cwd)
+      if (script) {
+        const portArgs = buildPortArgs(framework, port, defaultPort)
+        const portEnv = (framework === 'nestjs' && port !== defaultPort)
+          ? { ...process.env, PORT: String(port) }
+          : process.env
+        await execa(pm, ['run', script, ...portArgs], { stdio: 'inherit', env: portEnv })
+      } else {
+        console.log(chalk.yellow(`⚠ No se encontró un script de desarrollo en package.json (dev/start).`))
+        console.log(`Tu entorno está listo. Levanta tu aplicación manualmente en el puerto ${port}.`)
+      }
     } else {
       console.log(chalk.yellow(`⚠ No se encontró package.json o comando de inicio automático.`))
       console.log(`Tu entorno está listo. Levanta tu aplicación manualmente en el puerto ${port}.`)
     }
-  } catch {
-    console.log(chalk.gray(`\nServidor de desarrollo detenido.`))
+  } catch (e) {
+    const stopped = e.isTerminated || e.signal === 'SIGINT' || e.signal === 'SIGTERM'
+    if (stopped) {
+      console.log(chalk.gray(`\nServidor de desarrollo detenido.`))
+    } else {
+      console.log(chalk.red(`\nError iniciando el servidor de desarrollo:`))
+      console.log(chalk.dim(e.shortMessage || e.stderr?.split('\n').filter(Boolean)[0] || e.message))
+    }
   }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function tryBind(port, host) {
+  return new Promise(resolve => {
+    const srv = createServer()
+    srv.once('error', () => resolve(false))
+    srv.once('listening', () => { srv.close(); resolve(true) })
+    srv.listen(port, host)
+  })
+}
+
+async function isPortFree(port) {
+  const [v4, v6] = await Promise.all([
+    tryBind(port, '127.0.0.1'),
+    tryBind(port, '::1').catch(() => true),  // IPv6 puede no estar disponible
+  ])
+  return v4 && v6
+}
+
+async function findAvailablePort(start) {
+  for (let p = start; p < start + 20; p++) {
+    if (await isPortFree(p)) return p
+  }
+  return start
+}
+
+/**
+ * Devuelve los args de `--port` para pasar vía `npm run <script> -- ...`
+ * Solo aplica si el puerto real difiere del puerto por defecto.
+ */
+function buildPortArgs(framework, port, defaultPort) {
+  if (port === defaultPort) return []
+
+  // npm/yarn/pnpm requieren `--` para separar args del script
+  switch (framework) {
+    case 'nextjs':  return ['--', '-p', String(port)]
+    case 'nestjs':  return []   // NestJS usa PORT como env var, no CLI arg
+    default:        return ['--', '--port', String(port)]  // Vite, Angular, Astro, etc.
+  }
+}
+
+function ensureAngularAllowedHosts(cwd, projectName) {
+  const configPath = join(cwd, 'angular.json')
+  if (!existsSync(configPath)) return
+
+  let config
+  try {
+    config = JSON.parse(readFileSync(configPath, 'utf8'))
+  } catch {
+    return
+  }
+
+  const ngProject = Object.keys(config.projects ?? {})[0]
+  const serveTarget = config.projects?.[ngProject]?.architect?.serve
+  if (!serveTarget) return
+
+  if (!serveTarget.options) serveTarget.options = {}
+
+  const host = `${projectName}.test`
+  const current = serveTarget.options.allowedHosts ?? []
+  if (current.includes(host)) return
+
+  serveTarget.options.allowedHosts = [...current, host]
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
+  console.log(chalk.green(`✓ angular.json: ${host} agregado a allowedHosts`))
+}
+
+function ensureNuxtAllowedHosts(cwd, projectName) {
+  const configPath = join(cwd, 'nuxt.config.ts')
+  if (!existsSync(configPath)) return
+
+  let config
+  try { config = readFileSync(configPath, 'utf8') } catch { return }
+
+  if (config.includes('allowedHosts: true')) return
+
+  const host = `${projectName}.test`
+
+  if (config.includes('allowedHosts:')) {
+    config = config.replace(/allowedHosts:\s*\[[^\]]*\]/, 'allowedHosts: true')
+    writeFileSync(configPath, config, 'utf8')
+    console.log(chalk.green(`✓ nuxt.config.ts: allowedHosts actualizado`))
+    return
+  }
+
+  if (!config.includes('defineNuxtConfig({')) return
+
+  config = config.replace(
+    'defineNuxtConfig({',
+    `defineNuxtConfig({\n\tvite: { server: { allowedHosts: true } },`
+  )
+  writeFileSync(configPath, config, 'utf8')
+  console.log(chalk.green(`✓ nuxt.config.ts: allowedHosts habilitado para ${host}`))
+}
+
+function ensureViteAllowedHosts(cwd, projectName) {
+  const configPath = existsSync(join(cwd, 'vite.config.ts'))
+    ? join(cwd, 'vite.config.ts')
+    : join(cwd, 'vite.config.js')
+
+  if (!existsSync(configPath)) return
+
+  let config
+  try {
+    config = readFileSync(configPath, 'utf8')
+  } catch {
+    return
+  }
+
+  if (config.includes('allowedHosts: true')) return
+
+  // Si ya hay un array de allowedHosts, reemplazarlo con true
+  if (config.includes('allowedHosts:')) {
+    config = config.replace(/allowedHosts:\s*\[[^\]]*\]/, 'allowedHosts: true')
+    writeFileSync(configPath, config, 'utf8')
+    console.log(chalk.green(`✓ vite.config: allowedHosts actualizado`))
+    return
+  }
+
+  if (!config.includes('export default defineConfig({')) return
+
+  config = config.replace(
+    'export default defineConfig({',
+    `export default defineConfig({\n\tserver: { host: true, allowedHosts: true },`
+  )
+  writeFileSync(configPath, config, 'utf8')
+  console.log(chalk.green(`✓ vite.config: allowedHosts habilitado para ${projectName}.test`))
+}
+
+function resolveDevScript(framework, cwd) {
+  const pkgPath = join(cwd, 'package.json')
+  if (!existsSync(pkgPath)) return null
+
+  const scripts = JSON.parse(readFileSync(pkgPath, 'utf8')).scripts ?? {}
+
+  if (framework === 'nestjs') {
+    if (scripts['start:dev']) return 'start:dev'
+    if (scripts['start']) return 'start'
+    return null
+  }
+
+  if (scripts['dev']) return 'dev'
+  if (scripts['start']) return 'start'
+  return null
+}
+
 function detectPm(cwd) {
-  if (existsSync(join(cwd, 'yarn.lock'))) return 'yarn'
-  if (existsSync(join(cwd, 'pnpm-lock.yaml'))) return 'pnpm'
+  if (existsSync(join(cwd, 'yarn.lock')) && hasBin('yarn')) return 'yarn'
+  if (existsSync(join(cwd, 'pnpm-lock.yaml')) && hasBin('pnpm')) return 'pnpm'
   return 'npm'
 }
 

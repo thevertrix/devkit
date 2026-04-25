@@ -174,7 +174,10 @@ export function detectFramework(dir = process.cwd()) {
     const composer = JSON.parse(readFileSync(composerJsonPath, 'utf8'))
     const deps = { ...composer.require, ...composer['require-dev'] }
     if (deps['laravel/framework']) return 'laravel'
+    return 'php'
   }
+
+  if (existsSync(`${dir}/public/index.php`) || existsSync(`${dir}/index.php`)) return 'php'
 
   if (existsSync(packageJsonPath)) {
     const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf8'))
@@ -200,6 +203,7 @@ export function detectFramework(dir = process.cwd()) {
  */
 export function getFrameworkDefaultPort(framework) {
   const ports = {
+    php: 8000,
     laravel: 8000,
     nextjs: 3000,
     nuxtjs: 3000,
