@@ -33,7 +33,6 @@ program
 program
   .command('new <name>')
   .description('Crea un nuevo proyecto con dominio .test y SSL')
-  .option('-p, --port <port>', 'puerto local del servidor', '3000')
   .option('--php', 'crear un esqueleto basico de PHP')
   .option('--laravel', 'crear un proyecto de Laravel (requiere composer)')
   .option('--next', 'crear un proyecto de Next.js')
@@ -69,6 +68,9 @@ program
   .option('--postgres', 'Detener solo el contenedor PostgreSQL')
   .option('--redis', 'Detener solo el contenedor Redis')
   .option('--mailpit', 'Detener solo el contenedor Mailpit')
+  .option('--php', 'Detener solo el contenedor PHP')
+  .option('--node', 'Detener solo el contenedor Node.js')
+  .option('--python', 'Detener solo el contenedor Python')
   .action(async (opts) => {
     const { stop } = await import('../commands/stop.js')
     await stop(opts)

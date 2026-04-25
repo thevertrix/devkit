@@ -121,10 +121,7 @@ $project = basename(dirname(__DIR__));
       patchSvelteKitConfig(targetDir)
       console.log(chalk.green(`✓ Proyecto SvelteKit creado en ${targetDir}`))
     } else {
-      console.log(chalk.blue('Generando proyecto Vite (Vanilla TS) por defecto...'))
-      console.log(chalk.dim('Esto puede tardar unos minutos descargando dependencias...'))
-      await execa('npm', ['create', 'vite@latest', slug, '--', '--template', 'vanilla-ts'], { cwd: projectsBaseDir, stdio: 'inherit' })
-      patchViteConfig(targetDir)
+      await createViteProject(targetDir, slug)
       console.log(chalk.green(`✓ Proyecto Vite creado en ${targetDir}`))
     }
 
@@ -736,48 +733,70 @@ function patchNuxtConfig(targetDir) {
 }
 
 /**
- * Configura Vite (vanilla) para permitir dominios .test
+ * Crea un proyecto Vite (Vanilla TS) manualmente sin depender de create-vite,
+ * que en v9+ inicia el servidor automáticamente impidiendo el patching post-creación.
  */
-function patchViteConfig(targetDir) {
-  const configPath = join(targetDir, 'vite.config.ts')
-  
-  if (!existsSync(configPath)) {
-    console.log(chalk.yellow('  ⚠ vite.config.ts no encontrado, saltando configuración'))
-    return
-  }
+async function createViteProject(targetDir, slug) {
+  const spinner = ora('Creando proyecto Vite (Vanilla TS)...').start()
+  mkdirSync(join(targetDir, 'src'), { recursive: true })
+  mkdirSync(join(targetDir, 'public'), { recursive: true })
 
-  let config = readFileSync(configPath, 'utf8')
-  
-  // Si ya tiene la configuración, no hacer nada
-  if (config.includes('allowedHosts')) {
-    console.log(chalk.green('  ✓ vite.config.ts ya configurado para dominios .test'))
-    return
-  }
+  writeFileSync(join(targetDir, 'package.json'), JSON.stringify({
+    name: slug,
+    private: true,
+    version: '0.0.0',
+    type: 'module',
+    scripts: { dev: 'vite', build: 'tsc && vite build', preview: 'vite preview' },
+    devDependencies: { typescript: '~5.6.0', vite: '^6.0.0' },
+  }, null, 2) + '\n')
 
-  // Añadir configuración de server allowedHosts
-  if (config.includes('export default defineConfig({')) {
-    config = config.replace(
-      'export default defineConfig({',
-      `export default defineConfig({
+  writeFileSync(join(targetDir, 'vite.config.ts'),
+`import { defineConfig } from 'vite'
+
+export default defineConfig({
   server: {
     host: true,
     allowedHosts: true,
-  },`
-    )
-  } else {
-    // Configuración simple sin defineConfig
-    config = config.replace(
-      'export default {',
-      `export default {
-  server: {
-    host: true,
-    allowedHosts: true,
-  },`
-    )
-  }
+  },
+})
+`)
 
-  writeFileSync(configPath, config, 'utf8')
-  console.log(chalk.green('  ✓ vite.config.ts configurado para dominios .test'))
+  writeFileSync(join(targetDir, 'tsconfig.json'), JSON.stringify({
+    compilerOptions: {
+      target: 'ES2020', useDefineForClassFields: true, module: 'ESNext',
+      lib: ['ES2020', 'DOM', 'DOM.Iterable'], skipLibCheck: true,
+      moduleResolution: 'bundler', allowImportingTsExtensions: true,
+      isolatedModules: true, moduleDetection: 'force', noEmit: true, strict: true,
+    },
+    include: ['src'],
+  }, null, 2) + '\n')
+
+  writeFileSync(join(targetDir, 'index.html'),
+`<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${slug}</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+`)
+
+  writeFileSync(join(targetDir, 'src', 'main.ts'),
+`document.querySelector<HTMLDivElement>('#app')!.innerHTML = \`
+  <h1>${slug}</h1>
+\`
+`)
+
+  writeFileSync(join(targetDir, '.gitignore'), `node_modules\ndist\n.env\n`)
+
+  spinner.text = 'Instalando dependencias...'
+  await execa('npm', ['install'], { cwd: targetDir, stdio: 'pipe' })
+  spinner.succeed(chalk.green('Proyecto Vite listo'))
 }
 
 /**

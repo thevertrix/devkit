@@ -7,10 +7,13 @@ import { removeHostEntry } from '../core/dns.js'
 
 // Mapa de flags a nombres de servicio en docker-compose
 const SERVICE_MAP = {
-  mysql: 'mysql',
+  mysql:   'mysql',
   postgres: 'postgres',
-  redis: 'redis',
+  redis:   'redis',
   mailpit: 'mailpit',
+  php:     'php',
+  node:    'node',
+  python:  'python',
 }
 
 export async function stop(options = {}) {
